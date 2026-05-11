@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+#MISE description="Install dependencies using uv"
+#MISE quiet=true
+
+#USAGE flag "-f --force" help="Force recreate environment."
+#USAGE arg "[passthru]" var=#true double_dash="required" help="Use -- to start passthrough arguments to uv sync."
+
+if [[ -n "${usage_force}" ]]; then
+    rm -rf .venv
+    rm -f uv.lock
+fi
+
+uv_cmd=(uv sync --all-extras)
+if [[ -n "${usage_passthru}" ]]; then
+    eval "usage_passthru=(${usage_passthru})"
+    uv_cmd+=("${usage_passthru[@]}")
+fi
+
+"${uv_cmd[@]}"
+
+## Install pre-commit hook.
+prek install

@@ -1,0 +1,27 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools", "wheel"]
+
+[project]
+name = "slurm-compose"
+description = "Run slurm like docker-compose."
+requires-python = ">=3.11,<3.13"
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+dynamic = ["version"]
+dependencies = ["Jinja2", "omegaconf", "rich", "tyro"]
+optional-dependencies.test = ["prek", "pytest"]
+
+scripts.slurm-compose = "slurm_compose.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+package-dir = { "" = "src" }
+dynamic.version = { attr = "slurm_compose.__version__" }
+packages.find.where = ["src"]
+
+[tool.setuptools.package-data]
+"slurm_compose.run" = ["**/*.sh"]

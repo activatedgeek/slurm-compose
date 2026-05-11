@@ -1,0 +1,22 @@
+[project]
+name = "slurm-compose-meta"
+version = "0.0.0a"
+requires-python = ">=3.11,<3.13"
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+dependencies = ["slurm-compose[test]"]
+
+[tool.uv]
+sources.slurm-compose = { path = "pkgs/core", editable = true }
+
+[tool.ruff]
+target-version = "py311"
+line-length = 119
+lint.extend-select = ["I"]
+
+[tool.pytest.ini_options]
+addopts = "-qrsx --tb=short"
+testpaths = ["pkgs/core/tests"]
