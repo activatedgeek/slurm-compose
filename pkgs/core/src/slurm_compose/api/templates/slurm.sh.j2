@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+##
+# Generated via slurm-compose.
+#
+
+#SBATCH --job-name={{ job_name }}
+#SBATCH --account={{ account }}
+#SBATCH --partition={{ partition }}
+{% if qos %}
+#SBATCH --qos={{ qos }}
+{% endif %}
+#SBATCH --time={{ time }}
+#SBATCH --nodes={{ nodes }}
+{% if mem %}
+#SBATCH --mem={{ mem }}
+{% endif %}
+#SBATCH --cpus-per-task={{ cpus_per_task }}
+{% if gpus_per_node %}
+#SBATCH --gpus-per-node={{ gpus_per_node }}
+{% endif %}
+#SBATCH --ntasks-per-node={{ ntasks_per_node }}
+{% if output %}
+#SBATCH --output={{ output }}
+#SBATCH --error={{ error or output }}
+{% endif %}
+{% for extra in extras %}
+#SBATCH {{ extra }}
+{% endfor %}
