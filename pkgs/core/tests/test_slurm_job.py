@@ -38,6 +38,7 @@ def enroot_job_step() -> EnrootJobStep:
     return EnrootJobStep(
         job_name="test_step",
         container_image="/images/test.sqsh",
+        container_mounts=["/var/run:/var/run"],
         nodes=2,
         ntasks_per_node=1,
         cpus_per_task=4,
@@ -84,7 +85,7 @@ def test_slurm_job_materialize(slurm_job: SlurmJob):
     assert f"#SBATCH --error={slurm_job.error}\n" in materialized_str
 
 
-def test_slurm_job_nullable_materialize(slurm_job: SlurmJob):
+def test_slurm_job_materialize_nullables(slurm_job: SlurmJob):
     slurm_job.qos = None
     slurm_job.mem = None
     slurm_job.cpus_per_task = None
@@ -110,9 +111,15 @@ def test_slurm_job_extras_materialize(slurm_job: SlurmJob):
     assert "#SBATCH --comment=test_comment\n" in materialized_str
 
 
-def test_slurm_job_step_empty():
+def test_job_step_empty():
     with pytest.raises(ValueError):
         SlurmJobStep()
+
+    with pytest.raises(ValueError):
+        SrunJobStep()
+
+    with pytest.raises(ValueError):
+        EnrootJobStep()
 
 
 def test_slurm_job_step(slurm_job_step: SlurmJobStep):
@@ -136,8 +143,37 @@ def test_srun_job_step(srun_job_step: SrunJobStep):
     assert f"{' '.join(srun_job_step.extra_argv)}" in command
 
 
+def test_srun_job_step_nullables(srun_job_step: SrunJobStep):
+    srun_job_step.cpus_per_task = None
+    srun_job_step.mem = None
+
+    command = " ".join(srun_job_step.argv)
+
+    assert "--cpus-per-task" not in command
+    assert "--mem" not in command
+
+
 def test_enroot_job_step(enroot_job_step: EnrootJobStep):
     command = " ".join(enroot_job_step.argv)
 
     assert f"--container-image {enroot_job_step.container_image}" in command
+    assert isinstance(enroot_job_step.container_mounts, str)
+    assert f"--container-mounts {enroot_job_step.container_mounts}" in command
     assert "--no-container-mount-home" in command
+
+
+def test_enroot_job_step_nullables(enroot_job_step: EnrootJobStep):
+    enroot_job_step.container_mounts = None
+    enroot_job_step.no_container_mount_home = False
+
+    command = " ".join(enroot_job_step.argv)
+
+    assert "--container-mounts" not in command
+    assert "--no-container-mount-home" not in command
+
+
+def test_enroot_job_step_invalid(enroot_job_step: EnrootJobStep):
+    enroot_job_step.container_mounts = []
+
+    with pytest.raises(ValueError):
+        enroot_job_step.argv

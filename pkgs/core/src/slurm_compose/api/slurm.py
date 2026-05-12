@@ -1,3 +1,4 @@
+import shlex
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -60,6 +61,9 @@ class SrunJobStep(SlurmJobStep):
     extra_argv: list[str] = field(default_factory=list)
 
     def __post_init__(self):
+        if not self.job_name:
+            raise ValueError("job_name cannot be empty.")
+
         if not self.error:
             self.error = self.output
 
@@ -70,13 +74,23 @@ class SrunJobStep(SlurmJobStep):
         def _handle_arg(k):
             arg_name = f"--{k.replace('_', '-')}"
             arg_val = getattr(self, k)
-            args = []
+
             if isinstance(arg_val, bool):
-                if arg_val:
-                    args = [arg_name]
+                if not arg_val:
+                    arg_name = None
+                arg_val = None
+            elif isinstance(arg_val, int):
+                ...
+            elif isinstance(arg_val, str):
+                arg_val = shlex.quote(arg_val)
+            elif isinstance(arg_val, Path):
+                arg_val = shlex.quote(str(arg_val.resolve()))
             else:
-                args = [arg_name, arg_val]
-            return args
+                raise ValueError(
+                    f"Unsupported value type {type(arg_val).__name__} for {k} ({arg_name}). Use only bool/int/str/Path."
+                )
+
+            return list(filter(lambda a: a is not None, [arg_name, arg_val]))
 
         srun_argv: list[str] = sum(
             [
@@ -99,13 +113,16 @@ class EnrootJobStep(SrunJobStep):
 
     container_image: str | None = field(default=None)
 
-    container_mounts: list[str] = field(default_factory=list)
+    container_mounts: str | list[str] | None = field(default=None)
 
     container_workdir: str | None = field(default=None)
 
     no_container_mount_home: bool = field(default=True)
 
     def __post_init__(self):
+        if not self.container_image:
+            raise ValueError("container_image cannot be empty.")
+
         if isinstance(self.container_mounts, list):
             self.container_mounts = ",".join(self.container_mounts)
 
