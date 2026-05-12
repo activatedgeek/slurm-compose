@@ -1,0 +1,30 @@
+name: Pytest
+on:
+  push:
+    branches:
+      - '*'
+jobs:
+  run-prek:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Setup mise
+        uses: jdx/mise-action@v4
+        with:
+          cache: true
+      - name: Setup repo
+        shell: bash
+        run: mise setup
+      - name: Run pytest
+        shell: bash
+        run: |
+          mise x -- pytest
+      - name: Discord Notify
+        uses: sarisia/actions-status-discord@v1
+        if: always()
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          username: ${{ github.repository }}

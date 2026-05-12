@@ -1,0 +1,39 @@
+name: Prek
+on:
+  push:
+    branches:
+      - '*'
+jobs:
+  run-prek:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Setup mise
+        uses: jdx/mise-action@v4
+        with:
+          cache: true
+      - name: Setup repo
+        shell: bash
+        run: mise setup
+      - name: Run prek
+        shell: bash
+        run: |
+          prek_cmd=(mise x -- prek run --show-diff-on-failure)
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            prek_cmd+=(
+              --from-ref "origin/${{ github.base_ref }}"
+              --to-ref "${{ github.sha }}"
+            )
+          else
+            prek_cmd+=(--all-files)
+          fi
+          "${prek_cmd[@]}"
+      - name: Discord Notify
+        uses: sarisia/actions-status-discord@v1
+        if: always()
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          username: ${{ github.repository }}
