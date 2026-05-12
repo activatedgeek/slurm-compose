@@ -5,7 +5,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-from slurm_compose.api.base import BaseArgs
+from .base import BaseArgs
 
 
 @dataclass
@@ -72,12 +72,12 @@ class SrunJobStep(SlurmJobStep):
     @property
     def argv(self) -> list[str]:
         def _handle_arg(k):
-            arg_name = f"--{k.replace('_', '-')}"
+            arg_name = k.replace("_", "-")
             arg_val = getattr(self, k)
 
             if isinstance(arg_val, bool):
                 if not arg_val:
-                    arg_name = None
+                    arg_name = "no-" + arg_name
                 arg_val = None
             elif isinstance(arg_val, int):
                 ...
@@ -90,7 +90,7 @@ class SrunJobStep(SlurmJobStep):
                     f"Unsupported value type {type(arg_val).__name__} for {k} ({arg_name}). Use only bool/int/str/Path."
                 )
 
-            return list(filter(lambda a: a is not None, [arg_name, arg_val]))
+            return list(filter(lambda a: a is not None, ["--" + arg_name, arg_val]))
 
         srun_argv: list[str] = sum(
             [
@@ -102,34 +102,6 @@ class SrunJobStep(SlurmJobStep):
         )
 
         return [str(arg) for arg in ["srun"] + srun_argv + self.extra_argv + self.command]
-
-
-@dataclass
-class EnrootJobStep(SrunJobStep):
-    """Srun with enroot containers.
-
-    See https://github.com/NVIDIA/enroot.
-    """
-
-    container_image: str | None = field(default=None)
-
-    container_mounts: str | list[str] | None = field(default=None)
-
-    container_workdir: str | None = field(default=None)
-
-    no_container_mount_home: bool = field(default=True)
-
-    def __post_init__(self):
-        if not self.container_image:
-            raise ValueError("container_image cannot be empty.")
-
-        if isinstance(self.container_mounts, list):
-            self.container_mounts = ",".join(self.container_mounts)
-
-        if not self.container_mounts:
-            self.container_mounts = None
-
-        super().__post_init__()
 
 
 @dataclass

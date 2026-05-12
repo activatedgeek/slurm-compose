@@ -2,7 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from slurm_compose.api import EnrootJobStep, SlurmJob, SlurmJobStep, SrunJobStep
+from slurm_compose.api import SlurmJob, SlurmJobStep, SrunJobStep
 
 
 @pytest.fixture
@@ -19,26 +19,6 @@ def slurm_job_step() -> SlurmJobStep:
 def srun_job_step() -> SrunJobStep:
     return SrunJobStep(
         job_name="test_step",
-        nodes=2,
-        ntasks_per_node=1,
-        cpus_per_task=4,
-        gpus_per_node=8,
-        mem="16G",
-        output=Path.home() / "slurm/test/%j.log",
-        extra_argv=["--exact"],
-        command=["python", "test.py"],
-        env=dict(
-            JOB_VAR="job_value",
-        ),
-    )
-
-
-@pytest.fixture
-def enroot_job_step() -> EnrootJobStep:
-    return EnrootJobStep(
-        job_name="test_step",
-        container_image="/images/test.sqsh",
-        container_mounts=["/var/run:/var/run"],
         nodes=2,
         ntasks_per_node=1,
         cpus_per_task=4,
@@ -118,9 +98,6 @@ def test_job_step_empty():
     with pytest.raises(ValueError):
         SrunJobStep()
 
-    with pytest.raises(ValueError):
-        EnrootJobStep()
-
 
 def test_slurm_job_step(slurm_job_step: SlurmJobStep):
     assert len(slurm_job_step.argv) == 2
@@ -151,29 +128,3 @@ def test_srun_job_step_nullables(srun_job_step: SrunJobStep):
 
     assert "--cpus-per-task" not in command
     assert "--mem" not in command
-
-
-def test_enroot_job_step(enroot_job_step: EnrootJobStep):
-    command = " ".join(enroot_job_step.argv)
-
-    assert f"--container-image {enroot_job_step.container_image}" in command
-    assert isinstance(enroot_job_step.container_mounts, str)
-    assert f"--container-mounts {enroot_job_step.container_mounts}" in command
-    assert "--no-container-mount-home" in command
-
-
-def test_enroot_job_step_nullables(enroot_job_step: EnrootJobStep):
-    enroot_job_step.container_mounts = None
-    enroot_job_step.no_container_mount_home = False
-
-    command = " ".join(enroot_job_step.argv)
-
-    assert "--container-mounts" not in command
-    assert "--no-container-mount-home" not in command
-
-
-def test_enroot_job_step_invalid(enroot_job_step: EnrootJobStep):
-    enroot_job_step.container_mounts = []
-
-    with pytest.raises(ValueError):
-        enroot_job_step.argv
