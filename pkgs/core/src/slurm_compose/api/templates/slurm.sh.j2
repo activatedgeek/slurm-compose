@@ -4,30 +4,8 @@
 # Generated via slurm-compose.
 #
 
-#SBATCH --job-name={{ job_name }}
-#SBATCH --account={{ account }}
-#SBATCH --partition={{ partition }}
-{% if qos %}
-#SBATCH --qos={{ qos }}
-{% endif %}
-#SBATCH --time={{ time }}
-#SBATCH --nodes={{ nodes }}
-{% if mem %}
-#SBATCH --mem={{ mem }}
-{% endif %}
-{% if cpus_per_task %}
-#SBATCH --cpus-per-task={{ cpus_per_task }}
-{% endif %}
-{% if gpus_per_node %}
-#SBATCH --gpus-per-node={{ gpus_per_node }}
-{% endif %}
-#SBATCH --ntasks-per-node={{ ntasks_per_node }}
-{% if output %}
-#SBATCH --output={{ output }}
-#SBATCH --error={{ error or output }}
-{% endif %}
-{% for extra_arg in extra_argv %}
-#SBATCH {{ extra_arg }}
+{% for arg in sbatch_argv %}
+#SBATCH {{ arg }}
 {% endfor %}
 
 step_pids=()
@@ -40,7 +18,7 @@ step_pids=()
 export {{ k }}="{{ v }}"
 {% endfor %}
 
-{{ step.command | join(" ") }} & step_pids+=($!)
+{{ step.argv | join(" ") }} & step_pids+=($!)
 
 # unset {{ step.env.keys() | join(" ") }}
 

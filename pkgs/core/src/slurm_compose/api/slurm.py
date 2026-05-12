@@ -1,11 +1,12 @@
-import shlex
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
+from typing import Literal
 
 from jinja2 import Environment, FileSystemLoader
 
 from .base import BaseArgs
+from .utils import fields_to_argv
 
 
 @dataclass
@@ -71,35 +72,7 @@ class SrunJobStep(SlurmJobStep):
 
     @property
     def argv(self) -> list[str]:
-        def _handle_arg(k):
-            arg_name = k.replace("_", "-")
-            arg_val = getattr(self, k)
-
-            if isinstance(arg_val, bool):
-                if not arg_val:
-                    arg_name = "no-" + arg_name
-                arg_val = None
-            elif isinstance(arg_val, int):
-                ...
-            elif isinstance(arg_val, str):
-                arg_val = shlex.quote(arg_val)
-            elif isinstance(arg_val, Path):
-                arg_val = shlex.quote(str(arg_val.resolve()))
-            else:
-                raise ValueError(
-                    f"Unsupported value type {type(arg_val).__name__} for {k} ({arg_name}). Use only bool/int/str/Path."
-                )
-
-            return list(filter(lambda a: a is not None, ["--" + arg_name, arg_val]))
-
-        srun_argv: list[str] = sum(
-            [
-                _handle_arg(k)
-                for k in type(self).fields().keys()
-                if k not in (SlurmJobStep.fields().keys() | {"extra_argv"}) and getattr(self, k) is not None
-            ],
-            [],
-        )
+        srun_argv = fields_to_argv(self, ignore_keys=SlurmJobStep.fields().keys() | {"extra_argv"})
 
         return [str(arg) for arg in ["srun"] + srun_argv + self.extra_argv + self.command]
 
@@ -137,6 +110,8 @@ class SlurmJob(BaseArgs):
 
     error: str | Path | None = field(default=None)
 
+    open_mode: Literal["append", "truncate"] = field(default="append")
+
     extra_argv: list[str] = field(default_factory=list)
 
     steps: list[SlurmJobStep] = field(default_factory=list)
@@ -168,19 +143,11 @@ class SlurmJob(BaseArgs):
 
         template = env.get_template(template)
 
+        sbatch_argv = fields_to_argv(
+            self, ignore_keys=BaseArgs.fields().keys() | {"extra_argv", "steps"}, equals_separated=True
+        )
+
         return template.render(
-            job_name=self.job_name,
-            account=self.account,
-            partition=self.partition,
-            qos=self.qos,
-            time=self.time,
-            nodes=self.nodes,
-            ntasks_per_node=self.ntasks_per_node,
-            cpus_per_task=self.cpus_per_task,
-            gpus_per_node=self.gpus_per_node,
-            mem=self.mem,
-            output=self.output,
-            error=self.error,
-            extra_argv=self.extra_argv,
+            sbatch_argv=sbatch_argv + (self.extra_argv or []),
             steps=self.steps,
         )

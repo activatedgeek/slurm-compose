@@ -1,0 +1,42 @@
+import shlex
+from pathlib import Path
+
+from .base import BaseArgs
+
+
+def fields_to_argv(obj: BaseArgs, ignore_keys: str | None = None, equals_separated: bool = False):
+    def _handle_arg(k):
+        arg_name = k.replace("_", "-")
+        arg_val = getattr(obj, k)
+
+        if isinstance(arg_val, bool):
+            if not arg_val:
+                arg_name = "no-" + arg_name
+            arg_val = None
+        elif isinstance(arg_val, int):
+            ...
+        elif isinstance(arg_val, str):
+            arg_val = shlex.quote(arg_val)
+        elif isinstance(arg_val, Path):
+            arg_val = shlex.quote(str(arg_val.resolve()))
+        else:
+            raise ValueError(
+                f"Unsupported value type {type(arg_val).__name__} for {k} ({arg_name}). Use only bool/int/str/Path."
+            )
+
+        arg_name = "--" + arg_name
+
+        arg = list(filter(lambda a: a is not None, [arg_name, arg_val]))
+        if equals_separated:
+            arg = ["=".join(str(a) for a in arg)]
+
+        return arg
+
+    return sum(
+        [
+            _handle_arg(k)
+            for k in type(obj).fields().keys()
+            if k not in (ignore_keys or set()) and getattr(obj, k) is not None
+        ],
+        [],
+    )

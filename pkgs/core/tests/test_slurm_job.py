@@ -63,6 +63,7 @@ def test_slurm_job_materialize(slurm_job: SlurmJob):
     assert f"#SBATCH --ntasks-per-node={slurm_job.ntasks_per_node}\n" in materialized_str
     assert f"#SBATCH --output={slurm_job.output}\n" in materialized_str
     assert f"#SBATCH --error={slurm_job.error}\n" in materialized_str
+    assert f"#SBATCH --open-mode={slurm_job.open_mode}\n" in materialized_str
 
 
 def test_slurm_job_materialize_nullables(slurm_job: SlurmJob):
