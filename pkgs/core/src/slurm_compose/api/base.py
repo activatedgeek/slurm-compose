@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 @dataclass
 class BaseArgs:
     version: ClassVar[int] = 1
-    """Preserve version for backward/forward compatibility of `from_yaml` method when writing in `to_yaml`"""
+    """Preserve version for backward compatibility."""
 
     def to_dict(self) -> dict:
         ## NOTE: OmegaConf keeps None values, remove them.

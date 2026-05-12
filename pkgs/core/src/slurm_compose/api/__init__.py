@@ -1,3 +1,3 @@
-from .slurm import SlurmJob, SlurmJobStep
+from .slurm import EnrootJobStep, SlurmJob, SlurmJobStep, SrunJobStep
 
-__all__ = ["SlurmJob", "SlurmJobStep"]
+__all__ = ["EnrootJobStep", "SlurmJob", "SlurmJobStep", "SrunJobStep"]

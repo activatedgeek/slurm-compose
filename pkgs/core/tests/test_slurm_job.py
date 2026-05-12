@@ -2,7 +2,54 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from slurm_compose.api import SlurmJob
+from slurm_compose.api import EnrootJobStep, SlurmJob, SlurmJobStep, SrunJobStep
+
+
+@pytest.fixture
+def slurm_job_step() -> SlurmJobStep:
+    return SlurmJobStep(
+        command="sleep infinity",
+        env=dict(
+            TEST_VAR="test_value",
+        ),
+    )
+
+
+@pytest.fixture
+def srun_job_step() -> SrunJobStep:
+    return SrunJobStep(
+        job_name="test_step",
+        nodes=2,
+        ntasks_per_node=1,
+        cpus_per_task=4,
+        gpus_per_node=8,
+        mem="16G",
+        output=Path.home() / "slurm/test/%j.log",
+        extra_argv=["--exact"],
+        command=["python", "test.py"],
+        env=dict(
+            JOB_VAR="job_value",
+        ),
+    )
+
+
+@pytest.fixture
+def enroot_job_step() -> EnrootJobStep:
+    return EnrootJobStep(
+        job_name="test_step",
+        container_image="/images/test.sqsh",
+        nodes=2,
+        ntasks_per_node=1,
+        cpus_per_task=4,
+        gpus_per_node=8,
+        mem="16G",
+        output=Path.home() / "slurm/test/%j.log",
+        extra_argv=["--exact"],
+        command=["python", "test.py"],
+        env=dict(
+            JOB_VAR="job_value",
+        ),
+    )
 
 
 @pytest.fixture
@@ -14,6 +61,7 @@ def slurm_job() -> SlurmJob:
         qos="test_qos",
         time=timedelta(hours=4),
         mem="16G",
+        cpus_per_task=1,
         gpus_per_node=8,
         output=Path.home() / "slurm/test/%j.log",
     )
@@ -39,6 +87,7 @@ def test_slurm_job_materialize(slurm_job: SlurmJob):
 def test_slurm_job_nullable_materialize(slurm_job: SlurmJob):
     slurm_job.qos = None
     slurm_job.mem = None
+    slurm_job.cpus_per_task = None
     slurm_job.gpus_per_node = None
     slurm_job.output = None
     slurm_job.error = None
@@ -47,14 +96,48 @@ def test_slurm_job_nullable_materialize(slurm_job: SlurmJob):
 
     assert "#SBATCH --qos=" not in materialized_str
     assert "#SBATCH --mem=" not in materialized_str
+    assert "#SBATCH --cpus-per-task=" not in materialized_str
     assert "#SBATCH --gpus-per-node=" not in materialized_str
     assert "#SBATCH --output=" not in materialized_str
     assert "#SBATCH --error=" not in materialized_str
 
 
 def test_slurm_job_extras_materialize(slurm_job: SlurmJob):
-    slurm_job.extras = ["--comment=test_comment"]
+    slurm_job.extra_argv = ["--comment=test_comment"]
 
     materialized_str = slurm_job.materialize()
 
     assert "#SBATCH --comment=test_comment\n" in materialized_str
+
+
+def test_slurm_job_step_empty():
+    with pytest.raises(ValueError):
+        SlurmJobStep()
+
+
+def test_slurm_job_step(slurm_job_step: SlurmJobStep):
+    assert len(slurm_job_step.argv) == 2
+
+
+def test_srun_job_step(srun_job_step: SrunJobStep):
+    command = " ".join(srun_job_step.argv)
+
+    assert command.startswith("srun")
+    assert f"--job-name {srun_job_step.job_name}" in command
+    assert f"--nodes {srun_job_step.nodes}" in command
+    assert f"--ntasks-per-node {srun_job_step.ntasks_per_node}" in command
+    assert f"--cpus-per-task {srun_job_step.cpus_per_task}" in command
+    assert f"--gpus-per-node {srun_job_step.gpus_per_node}" in command
+    assert f"--mem {srun_job_step.mem}" in command
+    assert f"--output {srun_job_step.output}" in command
+    assert f"--error {srun_job_step.error}" in command
+    assert f"--wait {srun_job_step.wait}" in command
+    assert f"--kill-on-bad-exit {srun_job_step.kill_on_bad_exit}" in command
+    assert f"{' '.join(srun_job_step.extra_argv)}" in command
+
+
+def test_enroot_job_step(enroot_job_step: EnrootJobStep):
+    command = " ".join(enroot_job_step.argv)
+
+    assert f"--container-image {enroot_job_step.container_image}" in command
+    assert "--no-container-mount-home" in command

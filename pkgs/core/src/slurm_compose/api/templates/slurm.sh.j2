@@ -15,7 +15,9 @@
 {% if mem %}
 #SBATCH --mem={{ mem }}
 {% endif %}
+{% if cpus_per_task %}
 #SBATCH --cpus-per-task={{ cpus_per_task }}
+{% endif %}
 {% if gpus_per_node %}
 #SBATCH --gpus-per-node={{ gpus_per_node }}
 {% endif %}
@@ -24,6 +26,22 @@
 #SBATCH --output={{ output }}
 #SBATCH --error={{ error or output }}
 {% endif %}
-{% for extra in extras %}
-#SBATCH {{ extra }}
+{% for extra_arg in extra_argv %}
+#SBATCH {{ extra_arg }}
+{% endfor %}
+
+step_pids=()
+
+{% for step in steps %}
+##
+# Step {{ loop.index }}
+#
+{% for k, v in step.env %}
+export {{ k }}="{{ v }}"
+{% endfor %}
+
+{{ step.command | join(" ") }} & step_pids+=($!)
+
+# unset {{ step.env.keys() | join(" ") }}
+
 {% endfor %}
