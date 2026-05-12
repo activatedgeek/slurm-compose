@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
 from jinja2 import Environment, FileSystemLoader
+from ruamel.yaml import YAML
 
 from .base import BaseArgs
 from .utils import fields_to_argv
@@ -33,57 +34,12 @@ class SlurmJobStep(BaseArgs):
 
 
 @dataclass
-class SrunJobStep(SlurmJobStep):
-    """Srun step arguments.
-
-    Each step is prefixed with srun and appropriate args.
-    """
-
-    job_name: str | None = field(default=None)
-
-    nodes: int | None = field(default=None)
-
-    ntasks_per_node: int | None = field(default=None)
-
-    cpus_per_task: int | None = field(default=None)
-
-    gpus_per_node: int | None = field(default=None)
-
-    mem: str | None = field(default=None)
-
-    output: str | Path | None = field(default=None)
-
-    error: str | Path | None = field(default=None)
-
-    wait: int = field(default=10)
-
-    kill_on_bad_exit: int = field(default=1)
-
-    extra_argv: list[str] = field(default_factory=list)
-
-    def __post_init__(self):
-        if not self.job_name:
-            raise ValueError("job_name cannot be empty.")
-
-        if not self.error:
-            self.error = self.output
-
-        super().__post_init__()
-
-    @property
-    def argv(self) -> list[str]:
-        srun_argv = fields_to_argv(self, ignore_keys=SlurmJobStep.fields().keys() | {"extra_argv"})
-
-        return [str(arg) for arg in ["srun"] + srun_argv + self.extra_argv + self.command]
-
-
-@dataclass
 class SlurmJob(BaseArgs):
     """Slurm Job Arguments
 
     All these arguments are passed to sbatch. See https://slurm.schedmd.com/sbatch.html for docs.
 
-    `extras` is a catch all for arguments that are currently part of the typed dataclass.
+    `extra_argv` is a catch all for arguments that are currently part of the typed dataclass.
     """
 
     job_name: str | None = field(default=None)
@@ -130,7 +86,7 @@ class SlurmJob(BaseArgs):
         if not self.error:
             self.error = self.output
 
-    def materialize(self, template: str = "slurm.sh.j2", template_dir: str | list[str] | None = None) -> str:
+    def materialize(self, template: str = "slurm.sh.j2", template_dir: str | list[str | Path] | None = None) -> str:
         if isinstance(template_dir, str):
             template_dir = [template_dir]
         template_dir = template_dir or []
@@ -151,3 +107,41 @@ class SlurmJob(BaseArgs):
             sbatch_argv=sbatch_argv + (self.extra_argv or []),
             steps=self.steps,
         )
+
+    @classmethod
+    def from_yaml(
+        cls, file: str | Path, output: str | Path | None = None, error: str | Path | None = None
+    ) -> list[Self]:
+        with open(Path(file)) as f:
+            yaml = YAML().load(f)
+
+        jobs = []
+        for job_name, job_args in yaml.pop("jobs", {}).items():
+            job_args["job_name"] = job_name
+            job_args["output"] = output
+            job_args["error"] = error
+
+            steps = []
+            for step_idx, step in enumerate(job_args.pop("steps", [])):
+                ## Auto-infer job step class. FIXME.
+                from slurm_compose.api import PyxisJobStep, SlurmJobStep, SrunJobStep
+
+                for step_cls in [PyxisJobStep, SrunJobStep, SlurmJobStep]:
+                    step_cls_keys = step_cls.fields().keys()
+                    if step.keys() & step_cls_keys:
+                        step_cls_args = {**step}
+                        if {"output", "error"} & step_cls_keys:
+                            step_cls_args.update({"output": output, "error": error})
+
+                        step = step_cls(**step_cls_args)
+                        break
+
+                if not isinstance(step, SlurmJobStep):
+                    raise ValueError(f"Unable to parse step {step_idx}.")
+
+                steps.append(step)
+
+            job = cls(**job_args, steps=steps)
+            jobs.append(job)
+
+        return jobs

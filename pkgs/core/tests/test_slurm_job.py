@@ -25,7 +25,6 @@ def srun_job_step() -> SrunJobStep:
         gpus_per_node=8,
         mem="16G",
         output=Path.home() / "slurm/test/%j.log",
-        extra_argv=["--exact"],
         command=["python", "test.py"],
         env=dict(
             JOB_VAR="job_value",
@@ -118,14 +117,20 @@ def test_srun_job_step(srun_job_step: SrunJobStep):
     assert f"--error {srun_job_step.error}" in command
     assert f"--wait {srun_job_step.wait}" in command
     assert f"--kill-on-bad-exit {srun_job_step.kill_on_bad_exit}" in command
+    assert "--exact" in command
+    assert "--overlap" not in command
     assert f"{' '.join(srun_job_step.extra_argv)}" in command
 
 
 def test_srun_job_step_nullables(srun_job_step: SrunJobStep):
     srun_job_step.cpus_per_task = None
     srun_job_step.mem = None
+    srun_job_step.exact = None
+    srun_job_step.overlap = True
 
     command = " ".join(srun_job_step.argv)
 
     assert "--cpus-per-task" not in command
     assert "--mem" not in command
+    assert "--exact" not in command
+    assert "--overlap" in command

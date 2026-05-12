@@ -14,7 +14,7 @@ step_pids=()
 ##
 # Step {{ loop.index }}
 #
-{% for k, v in step.env %}
+{% for k, v in step.env.items() %}
 export {{ k }}="{{ v }}"
 {% endfor %}
 

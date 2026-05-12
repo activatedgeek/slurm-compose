@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from .slurm import SrunJobStep
+from .srun import SrunJobStep
 
 
 @dataclass
