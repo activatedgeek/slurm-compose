@@ -4,6 +4,19 @@ from pathlib import Path
 from .base import BaseArgs
 
 
+def resolve_log_template(dir_or_file: str | Path, template: str) -> Path:
+    if not dir_or_file:
+        return
+
+    dir_or_file = Path(dir_or_file)
+
+    ## Assumes no file extension to be a folder.
+    if not dir_or_file.suffix:
+        dir_or_file = dir_or_file / template
+
+    return dir_or_file.absolute()
+
+
 def fields_to_argv(obj: BaseArgs, ignore_keys: str | None = None, equals_separated: bool = False):
     def _handle_arg(k):
         arg_name = k.replace("_", "-")
@@ -18,7 +31,7 @@ def fields_to_argv(obj: BaseArgs, ignore_keys: str | None = None, equals_separat
         elif isinstance(arg_val, str):
             arg_val = shlex.quote(arg_val)
         elif isinstance(arg_val, Path):
-            arg_val = shlex.quote(str(arg_val.resolve()))
+            arg_val = shlex.quote(str(arg_val.absolute()))
         else:
             raise ValueError(
                 f"Unsupported value type {type(arg_val).__name__} for {k} ({arg_name}). Use only bool/int/str/Path."

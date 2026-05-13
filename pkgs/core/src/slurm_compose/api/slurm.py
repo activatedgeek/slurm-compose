@@ -1,13 +1,13 @@
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
-from typing import Literal, Self
+from typing import ClassVar, Literal, Self
 
 from jinja2 import Environment, FileSystemLoader
 from ruamel.yaml import YAML
 
 from .base import BaseArgs
-from .utils import fields_to_argv
+from .utils import fields_to_argv, resolve_log_template
 
 
 @dataclass
@@ -42,6 +42,10 @@ class SlurmJob(BaseArgs):
     `extra_argv` is a catch all for arguments that are currently part of the typed dataclass.
     """
 
+    _output_template: ClassVar[str] = "%j-%x.log"
+
+    _error_template: ClassVar[str] = "%j-%x.err"
+
     job_name: str | None = field(default=None)
 
     account: str | None = field(default=None)
@@ -73,6 +77,9 @@ class SlurmJob(BaseArgs):
     steps: list[SlurmJobStep] = field(default_factory=list)
 
     def __post_init__(self):
+        if not self.job_name:
+            raise ValueError("job_name cannot be empty.")
+
         if isinstance(self.time, timedelta):
             total_seconds = int(self.time.total_seconds())
             days, remainder = divmod(total_seconds, 86400)
@@ -83,8 +90,8 @@ class SlurmJob(BaseArgs):
             else:
                 self.time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-        if not self.error:
-            self.error = self.output
+        self.output = resolve_log_template(self.output, self._output_template)
+        self.error = resolve_log_template(self.error, self._error_template) or self.output
 
     def materialize(self, template: str = "slurm.sh.j2", template_dir: str | list[str | Path] | None = None) -> str:
         if isinstance(template_dir, str):
@@ -100,7 +107,9 @@ class SlurmJob(BaseArgs):
         template = env.get_template(template)
 
         sbatch_argv = fields_to_argv(
-            self, ignore_keys=BaseArgs.fields().keys() | {"extra_argv", "steps"}, equals_separated=True
+            self,
+            ignore_keys=BaseArgs.fields().keys() | {"extra_argv", "steps", "_output_template", "_error_template"},
+            equals_separated=True,
         )
 
         return template.render(

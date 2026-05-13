@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import ClassVar
 
 from .slurm import SlurmJobStep
-from .utils import fields_to_argv
+from .utils import fields_to_argv, resolve_log_template
 
 
 @dataclass
@@ -11,6 +12,10 @@ class SrunJobStep(SlurmJobStep):
 
     Each step is prefixed with srun and appropriate args.
     """
+
+    _output_template: ClassVar[str] = "%j-%x.log"
+
+    _error_template: ClassVar[str] = "%j-%x.err"
 
     job_name: str | None = field(default=None)
 
@@ -48,13 +53,15 @@ class SrunJobStep(SlurmJobStep):
         if not self.overlap:
             self.overlap = None
 
-        if not self.error:
-            self.error = self.output
+        self.output = resolve_log_template(self.output, self._output_template)
+        self.error = resolve_log_template(self.error, self._error_template) or self.output
 
         super().__post_init__()
 
     @property
     def argv(self) -> list[str]:
-        srun_argv = fields_to_argv(self, ignore_keys=SlurmJobStep.fields().keys() | {"extra_argv"})
+        srun_argv = fields_to_argv(
+            self, ignore_keys=SlurmJobStep.fields().keys() | {"extra_argv", "_output_template", "_error_template"}
+        )
 
         return [str(arg) for arg in ["srun"] + srun_argv + self.extra_argv + self.command]
