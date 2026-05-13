@@ -9,17 +9,25 @@
 {% endfor %}
 
 step_pids=()
-
-{% for step in steps %}
+{% for step in steps +%}
 ##
 # Step {{ loop.index }}
 #
 {% for k, v in step.env.items() %}
 export {{ k }}="{{ v }}"
 {% endfor %}
-
-{{ step.args }} & step_pids+=($!)
-
+{
+STEP_ID={{ loop.index }}
+{{ step.args | trim }}
+} & step_pids+=($!)
 # unset {{ step.env.keys() | join(" ") }}
-
 {% endfor %}
+
+## Waits for any step to finish, and then terminates all returning the exit code.
+wait -n "${step_pids[@]}"
+exit_code=$?
+for pid in "${step_pids[@]}"; do
+    kill -TERM "$pid" 2>/dev/null
+done
+wait "${step_pids[@]}" 2>/dev/null
+exit $exit_code

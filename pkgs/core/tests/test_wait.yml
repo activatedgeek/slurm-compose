@@ -1,0 +1,38 @@
+jobs:
+  ok:
+    steps:
+      - __class__: slurm_compose.api.scripts:Script
+        command: |
+          sleep "${SLEEP_TIME}"
+          echo "Finished Step ${STEP_ID}."
+        env:
+          SLEEP_TIME: 30s
+      - __class__: slurm_compose.api.scripts:Script
+        command: |
+          sleep "${SLEEP_TIME}"
+          echo "Finished Step ${STEP_ID}."
+        env:
+          SLEEP_TIME: 3s
+      - __class__: slurm_compose.api.scripts:Script
+        command: |
+          sleep "${SLEEP_TIME}"
+          echo "Finished Step ${STEP_ID}."
+        env:
+          SLEEP_TIME: 10s
+  fail:
+    steps:
+      - __class__: slurm_compose.api.scripts:Script
+        command: |
+          sleep "${SLEEP_TIME}"
+          echo "Finished Step ${STEP_ID}."
+        env:
+          SLEEP_TIME: 30s
+          TESTENV: testvalue
+      - __class__: slurm_compose.api.scripts:Script
+        command: |
+          echo "TESTENV: ${TESTENV}"
+          sleep "${SLEEP_TIME}"
+          exit 1
+          echo "Finished Step ${STEP_ID}."
+        env:
+          SLEEP_TIME: 3s

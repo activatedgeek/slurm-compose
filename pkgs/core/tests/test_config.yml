@@ -9,7 +9,8 @@ jobs:
     extra_argv:
       - --comment='test comment'
     steps:
-      - job_name: ray
+      - __class__: slurm_compose.api.scripts:PyxisScript
+        job_name: ray
         nodes: 2
         ntasks_per_node: 1
         gpus_per_node: 0
@@ -30,7 +31,8 @@ jobs:
           - 104857600
           - --memory
           - 104857600
-      - job_name: vllm
+      - __class__: slurm_compose.api.scripts:PyxisScript
+        job_name: vllm
         nodes: 2
         ntasks_per_node: 1
         cpus_per_task: 32
@@ -57,7 +59,8 @@ jobs:
           - qwen3
           - --reasoning-parser
           - qwen3
-      - job_name: rollout
+      - __class__: slurm_compose.api.scripts:PyxisScript
+        job_name: rollout
         nodes: 1
         ntasks_per_node: 1
         cpus_per_task: 32

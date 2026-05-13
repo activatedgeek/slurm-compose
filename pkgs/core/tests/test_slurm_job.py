@@ -100,8 +100,9 @@ def test_job_step_empty():
         SrunScript()
 
 
-def test_slurm_job_step(slurm_job_step: Script):
-    assert len(slurm_job_step.argv) == 2
+def test_slurm_job_step_argv(slurm_job_step: Script):
+    with pytest.raises(ValueError):
+        slurm_job_step.argv
 
 
 def test_srun_job_step(srun_job_step: SrunScript):

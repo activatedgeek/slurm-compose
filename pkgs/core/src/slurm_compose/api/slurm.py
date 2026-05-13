@@ -1,12 +1,13 @@
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
+from pkgutil import resolve_name
 from typing import ClassVar, Literal, Self, get_args, get_origin, get_type_hints
 
 from jinja2 import Environment, FileSystemLoader
 from ruamel.yaml import YAML
 
-from .scripts import PyxisScript, Script, SrunScript
+from .scripts import Script
 from .scripts.utils import fields_to_argv, resolve_log_template
 
 
@@ -118,19 +119,16 @@ class SlurmJob:
 
             steps = []
             for step_idx, step in enumerate(job_args.pop("steps", [])):
-                ## Auto-infer job step class. FIXME.
-                for step_cls in [PyxisScript, SrunScript, Script]:
-                    step_cls_keys = step_cls.fields().keys()
-                    if step.keys() & step_cls_keys:
-                        step_cls_args = {**step}
-                        if {"output", "error"} & step_cls_keys:
-                            step_cls_args.update({"output": output, "error": error})
+                if "__class__" not in step:
+                    raise ValueError(f"Missing __class__ in step {step_idx}")
 
-                        step = step_cls(**step_cls_args)
-                        break
+                step_cls = resolve_name(step.pop("__class__"))
 
-                if not isinstance(step, Script):
-                    raise ValueError(f"Unable to parse step {step_idx}.")
+                step_cls_args = {**step}
+                if issubclass(step_cls, Script) and ({"output", "error"} & step_cls.fields().keys()):
+                    step_cls_args.update({"output": output, "error": error})
+
+                step = step_cls(**step_cls_args)
 
                 steps.append(step)
 

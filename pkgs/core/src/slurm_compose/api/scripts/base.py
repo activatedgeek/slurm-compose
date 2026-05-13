@@ -14,9 +14,6 @@ class Script:
     env: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self):
-        if isinstance(self.command, str):
-            self.command = self.command.split()
-
         if not self.command:
             raise ValueError("command cannot be empty.")
 
@@ -31,8 +28,14 @@ class Script:
 
     @property
     def argv(self) -> list[str]:
+        if isinstance(self.command, str):
+            raise ValueError("argv is not supported when command is a string.")
+
         return [str(arg) for arg in self.command]
 
     @property
     def args(self) -> str:
+        if isinstance(self.command, str):
+            return self.command
+
         return " ".join(self.argv)
