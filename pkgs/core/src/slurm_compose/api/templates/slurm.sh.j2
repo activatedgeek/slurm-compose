@@ -18,7 +18,7 @@ step_pids=()
 export {{ k }}="{{ v }}"
 {% endfor %}
 
-{{ step.argv | join(" ") }} & step_pids+=($!)
+{{ step.args }} & step_pids+=($!)
 
 # unset {{ step.env.keys() | join(" ") }}
 

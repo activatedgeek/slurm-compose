@@ -104,7 +104,7 @@ def test_slurm_job_step(slurm_job_step: SlurmJobStep):
 
 
 def test_srun_job_step(srun_job_step: SrunJobStep):
-    command = " ".join(srun_job_step.argv)
+    command = srun_job_step.args
 
     assert command.startswith("srun")
     assert f"--job-name {srun_job_step.job_name}" in command
@@ -128,7 +128,7 @@ def test_srun_job_step_nullables(srun_job_step: SrunJobStep):
     srun_job_step.exact = None
     srun_job_step.overlap = True
 
-    command = " ".join(srun_job_step.argv)
+    command = srun_job_step.args
 
     assert "--cpus-per-task" not in command
     assert "--mem" not in command

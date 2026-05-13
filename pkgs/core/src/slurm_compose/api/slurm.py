@@ -32,6 +32,10 @@ class SlurmJobStep(BaseArgs):
     def argv(self) -> list[str]:
         return [str(arg) for arg in self.command]
 
+    @property
+    def args(self) -> str:
+        return " ".join(self.argv)
+
 
 @dataclass
 class SlurmJob(BaseArgs):

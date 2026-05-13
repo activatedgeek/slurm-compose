@@ -30,7 +30,7 @@ def test_pyxis_job_step_empty():
 
 
 def test_pyxis_job_step(pyxis_job_step: PyxisJobStep):
-    command = " ".join(pyxis_job_step.argv)
+    command = pyxis_job_step.args
 
     assert f"--container-image {pyxis_job_step.container_image}" in command
     assert isinstance(pyxis_job_step.container_mounts, str)
@@ -42,7 +42,7 @@ def test_pyxis_job_step_nullables(pyxis_job_step: PyxisJobStep):
     pyxis_job_step.container_mounts = None
     pyxis_job_step.container_mount_home = True
 
-    command = " ".join(pyxis_job_step.argv)
+    command = pyxis_job_step.args
 
     assert "--container-mounts" not in command
     assert "--container-mount-home" in command
@@ -52,4 +52,4 @@ def test_pyxis_job_step_invalid(pyxis_job_step: PyxisJobStep):
     pyxis_job_step.container_mounts = []
 
     with pytest.raises(ValueError):
-        pyxis_job_step.argv
+        pyxis_job_step.args
