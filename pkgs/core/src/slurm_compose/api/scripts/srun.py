@@ -2,13 +2,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 
-from .slurm import SlurmJobStep
+from .base import Script
 from .utils import fields_to_argv, resolve_log_template
 
 
 @dataclass
-class SrunJobStep(SlurmJobStep):
-    """Srun step arguments.
+class SrunScript(Script):
+    """Srun step script.
 
     Each step is prefixed with srun and appropriate args.
     """
@@ -61,7 +61,7 @@ class SrunJobStep(SlurmJobStep):
     @property
     def argv(self) -> list[str]:
         srun_argv = fields_to_argv(
-            self, ignore_keys=SlurmJobStep.fields().keys() | {"extra_argv", "_output_template", "_error_template"}
+            self, ignore_keys=Script.fields().keys() | {"extra_argv", "_output_template", "_error_template"}
         )
 
         return [str(arg) for arg in ["srun"] + srun_argv + self.extra_argv + self.command]

@@ -1,11 +1,11 @@
 from dataclasses import dataclass, field
 
-from .srun import SrunJobStep
+from .srun import SrunScript
 
 
 @dataclass
-class PyxisJobStep(SrunJobStep):
-    """Srun with pyxis Slurm plugin.
+class PyxisScript(SrunScript):
+    """Srun with pyxis Slurm plugin arguments.
 
     See https://github.com/nvidia/pyxis.
     """

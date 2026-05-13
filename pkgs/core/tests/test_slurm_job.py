@@ -2,12 +2,13 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from slurm_compose.api import SlurmJob, SlurmJobStep, SrunJobStep
+from slurm_compose.api.scripts import Script, SrunScript
+from slurm_compose.api.slurm import SlurmJob
 
 
 @pytest.fixture
-def slurm_job_step() -> SlurmJobStep:
-    return SlurmJobStep(
+def slurm_job_step() -> Script:
+    return Script(
         command="sleep infinity",
         env=dict(
             TEST_VAR="test_value",
@@ -16,8 +17,8 @@ def slurm_job_step() -> SlurmJobStep:
 
 
 @pytest.fixture
-def srun_job_step() -> SrunJobStep:
-    return SrunJobStep(
+def srun_job_step() -> SrunScript:
+    return SrunScript(
         job_name="test_step",
         nodes=2,
         ntasks_per_node=1,
@@ -93,17 +94,17 @@ def test_slurm_job_extras_materialize(slurm_job: SlurmJob):
 
 def test_job_step_empty():
     with pytest.raises(ValueError):
-        SlurmJobStep()
+        Script()
 
     with pytest.raises(ValueError):
-        SrunJobStep()
+        SrunScript()
 
 
-def test_slurm_job_step(slurm_job_step: SlurmJobStep):
+def test_slurm_job_step(slurm_job_step: Script):
     assert len(slurm_job_step.argv) == 2
 
 
-def test_srun_job_step(srun_job_step: SrunJobStep):
+def test_srun_job_step(srun_job_step: SrunScript):
     command = srun_job_step.args
 
     assert command.startswith("srun")
@@ -122,7 +123,7 @@ def test_srun_job_step(srun_job_step: SrunJobStep):
     assert f"{' '.join(srun_job_step.extra_argv)}" in command
 
 
-def test_srun_job_step_nullables(srun_job_step: SrunJobStep):
+def test_srun_job_step_nullables(srun_job_step: SrunScript):
     srun_job_step.cpus_per_task = None
     srun_job_step.mem = None
     srun_job_step.exact = None

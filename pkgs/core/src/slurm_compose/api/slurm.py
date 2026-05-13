@@ -7,34 +7,8 @@ from jinja2 import Environment, FileSystemLoader
 from ruamel.yaml import YAML
 
 from .base import BaseArgs
-from .utils import fields_to_argv, resolve_log_template
-
-
-@dataclass
-class SlurmJobStep(BaseArgs):
-    """Slurm job step.
-
-    Sets up the command and environment to run in sbatch file.
-    """
-
-    command: str | list[str] = field(default_factory=list)
-
-    env: dict[str, str] = field(default_factory=dict)
-
-    def __post_init__(self):
-        if isinstance(self.command, str):
-            self.command = self.command.split()
-
-        if not self.command:
-            raise ValueError("command cannot be empty.")
-
-    @property
-    def argv(self) -> list[str]:
-        return [str(arg) for arg in self.command]
-
-    @property
-    def args(self) -> str:
-        return " ".join(self.argv)
+from .scripts import PyxisScript, Script, SrunScript
+from .scripts.utils import fields_to_argv, resolve_log_template
 
 
 @dataclass
@@ -78,7 +52,7 @@ class SlurmJob(BaseArgs):
 
     extra_argv: list[str] = field(default_factory=list)
 
-    steps: list[SlurmJobStep] = field(default_factory=list)
+    steps: list[Script] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.job_name:
@@ -137,9 +111,7 @@ class SlurmJob(BaseArgs):
             steps = []
             for step_idx, step in enumerate(job_args.pop("steps", [])):
                 ## Auto-infer job step class. FIXME.
-                from slurm_compose.api import PyxisJobStep, SlurmJobStep, SrunJobStep
-
-                for step_cls in [PyxisJobStep, SrunJobStep, SlurmJobStep]:
+                for step_cls in [PyxisScript, SrunScript, Script]:
                     step_cls_keys = step_cls.fields().keys()
                     if step.keys() & step_cls_keys:
                         step_cls_args = {**step}
@@ -149,7 +121,7 @@ class SlurmJob(BaseArgs):
                         step = step_cls(**step_cls_args)
                         break
 
-                if not isinstance(step, SlurmJobStep):
+                if not isinstance(step, Script):
                     raise ValueError(f"Unable to parse step {step_idx}.")
 
                 steps.append(step)

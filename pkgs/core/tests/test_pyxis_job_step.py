@@ -1,12 +1,12 @@
 from pathlib import Path
 
 import pytest
-from slurm_compose.api import PyxisJobStep
+from slurm_compose.api.scripts import PyxisScript
 
 
 @pytest.fixture
-def pyxis_job_step() -> PyxisJobStep:
-    return PyxisJobStep(
+def pyxis_job_step() -> PyxisScript:
+    return PyxisScript(
         job_name="test_step",
         container_image="/images/test.sqsh",
         container_mounts=["/var/run:/var/run"],
@@ -26,10 +26,10 @@ def pyxis_job_step() -> PyxisJobStep:
 
 def test_pyxis_job_step_empty():
     with pytest.raises(ValueError):
-        PyxisJobStep()
+        PyxisScript()
 
 
-def test_pyxis_job_step(pyxis_job_step: PyxisJobStep):
+def test_pyxis_job_step(pyxis_job_step: PyxisScript):
     command = pyxis_job_step.args
 
     assert f"--container-image {pyxis_job_step.container_image}" in command
@@ -38,7 +38,7 @@ def test_pyxis_job_step(pyxis_job_step: PyxisJobStep):
     assert "--no-container-mount-home" in command
 
 
-def test_pyxis_job_step_nullables(pyxis_job_step: PyxisJobStep):
+def test_pyxis_job_step_nullables(pyxis_job_step: PyxisScript):
     pyxis_job_step.container_mounts = None
     pyxis_job_step.container_mount_home = True
 
@@ -48,7 +48,7 @@ def test_pyxis_job_step_nullables(pyxis_job_step: PyxisJobStep):
     assert "--container-mount-home" in command
 
 
-def test_pyxis_job_step_invalid(pyxis_job_step: PyxisJobStep):
+def test_pyxis_job_step_invalid(pyxis_job_step: PyxisScript):
     pyxis_job_step.container_mounts = []
 
     with pytest.raises(ValueError):

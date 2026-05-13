@@ -4,7 +4,7 @@ from typing import Annotated
 
 import tyro
 
-from slurm_compose.api import SlurmJob
+from slurm_compose.api.slurm import SlurmJob
 
 
 @dataclass
@@ -31,7 +31,7 @@ class CLIConfig:
             return
 
         self.write = Path(self.write)
-        self.write.mkdir(exist_ok=True)
+        self.write.mkdir(exist_ok=True, parents=True)
 
         for job in self.jobs:
             sbatch_file = self.write / f"{job.job_name}_sbatch.sh"

@@ -1,7 +1,7 @@
 import shlex
 from pathlib import Path
 
-from .base import BaseArgs
+from .base import Script
 
 
 def resolve_log_template(dir_or_file: str | Path, template: str) -> Path:
@@ -17,7 +17,7 @@ def resolve_log_template(dir_or_file: str | Path, template: str) -> Path:
     return dir_or_file.absolute()
 
 
-def fields_to_argv(obj: BaseArgs, ignore_keys: str | None = None, equals_separated: bool = False):
+def fields_to_argv(obj: Script, ignore_keys: str | None = None, equals_separated: bool = False):
     def _handle_arg(k):
         arg_name = k.replace("_", "-")
         arg_val = getattr(obj, k)
