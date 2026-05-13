@@ -1,18 +1,17 @@
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
-from typing import ClassVar, Literal, Self
+from typing import ClassVar, Literal, Self, get_args, get_origin, get_type_hints
 
 from jinja2 import Environment, FileSystemLoader
 from ruamel.yaml import YAML
 
-from .base import BaseArgs
 from .scripts import PyxisScript, Script, SrunScript
 from .scripts.utils import fields_to_argv, resolve_log_template
 
 
 @dataclass
-class SlurmJob(BaseArgs):
+class SlurmJob:
     """Slurm Job Arguments
 
     All these arguments are passed to sbatch. See https://slurm.schedmd.com/sbatch.html for docs.
@@ -86,7 +85,7 @@ class SlurmJob(BaseArgs):
 
         sbatch_argv = fields_to_argv(
             self,
-            ignore_keys=BaseArgs.fields().keys() | {"extra_argv", "steps", "_output_template", "_error_template"},
+            ignore_keys={"extra_argv", "steps", "_output_template", "_error_template"},
             equals_separated=True,
         )
 
@@ -94,6 +93,15 @@ class SlurmJob(BaseArgs):
             sbatch_argv=sbatch_argv + (self.extra_argv or []),
             steps=self.steps,
         )
+
+    @classmethod
+    def fields(cls) -> dict[str]:
+        def _get_type(v):
+            if get_origin(v) is ClassVar:
+                return get_args(v)[0]
+            return v
+
+        return {k: _get_type(v) for k, v in get_type_hints(cls).items()}
 
     @classmethod
     def from_yaml(
