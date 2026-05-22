@@ -4,6 +4,7 @@ from typing import Annotated
 
 import tyro
 
+from slurm_compose.api.exporter import SlurmExporter
 from slurm_compose.api.slurm import SlurmJob
 
 
@@ -18,25 +19,29 @@ class CLIConfig:
     error: Annotated[str | Path | None, tyro.conf.arg(aliases=["-e"])] = field(default=None)
     """Path to slurm job stderr directory. Use to construct -e/--error."""
 
-    write: Annotated[str | Path | None, tyro.conf.arg(aliases=["-w"])] = field(default=None)
-    """Path to write materialized sbatch files."""
+    name: Annotated[str | None, tyro.conf.arg(aliases=["-n"])] = field(default=None)
+    """Name of export."""
+
+    export_dir: Annotated[str | Path | None, tyro.conf.arg(aliases=["-d"])] = field(default=None)
+    """Export directory. Respects XDG_CACHE_HOME."""
+
+    dry: bool = field(default=False)
+    """A dry run with no on-disk modifications."""
 
     def __post_init__(self):
-        self.file = Path(self.file)
-
         self.jobs = SlurmJob.from_yaml(self.file, output=self.output, error=self.error)
 
     def run(self):
-        if not self.write:
-            return
-
-        self.write = Path(self.write)
-        self.write.mkdir(exist_ok=True, parents=True)
-
-        for job in self.jobs:
-            sbatch_file = self.write / f"{job.job_name}_sbatch.sh"
-            sbatch_file.write_text(job.materialize())
-            sbatch_file.chmod(0o755)
+        self.exports = [
+            SlurmExporter(
+                job=job,
+                name=self.name,
+                export_dir=self.export_dir,
+            )
+            for job in self.jobs
+        ]
+        for export in self.exports:
+            export.run(dry=self.dry)
 
 
 def main():

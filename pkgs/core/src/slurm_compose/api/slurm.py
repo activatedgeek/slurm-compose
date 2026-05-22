@@ -71,30 +71,6 @@ class SlurmJob:
         self.output = resolve_log_template(self.output, self._output_template)
         self.error = resolve_log_template(self.error, self._error_template) or self.output
 
-    def materialize(self, template: str = "slurm.sh.j2", template_dir: str | list[str | Path] | None = None) -> str:
-        if isinstance(template_dir, str):
-            template_dir = [template_dir]
-        template_dir = template_dir or []
-
-        env = Environment(
-            loader=FileSystemLoader(template_dir + [Path(__file__).parent / "templates"]),
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
-
-        template = env.get_template(template)
-
-        sbatch_argv = fields_to_argv(
-            self,
-            ignore_keys={"extra_argv", "steps", "_output_template", "_error_template"},
-            equals_separated=True,
-        )
-
-        return template.render(
-            sbatch_argv=sbatch_argv + (self.extra_argv or []),
-            steps=self.steps,
-        )
-
     @classmethod
     def fields(cls) -> dict[str]:
         def _get_type(v):
@@ -136,3 +112,27 @@ class SlurmJob:
             jobs.append(job)
 
         return jobs
+
+    def materialize(self, template: str = "slurm.sh.j2", template_dir: str | list[str | Path] | None = None) -> str:
+        if isinstance(template_dir, str):
+            template_dir = [template_dir]
+        template_dir = template_dir or []
+
+        env = Environment(
+            loader=FileSystemLoader(template_dir + [Path(__file__).parent / "templates"]),
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+
+        template = env.get_template(template)
+
+        sbatch_argv = fields_to_argv(
+            self,
+            ignore_keys={"extra_argv", "steps", "_output_template", "_error_template"},
+            equals_separated=True,
+        )
+
+        return template.render(
+            sbatch_argv=sbatch_argv + (self.extra_argv or []),
+            steps=self.steps,
+        )

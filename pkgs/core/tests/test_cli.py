@@ -1,6 +1,5 @@
 import os
 import subprocess
-from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
@@ -19,19 +18,20 @@ def cli_wait_config() -> CLIConfig:
 
 def test_cli(cli_config: CLIConfig):
     with TemporaryDirectory() as tmp:
-        cli_config.write = tmp
+        cli_config.export_dir = tmp
 
         cli_config.run()
 
-        for job in cli_config.jobs:
-            sbatch_file = Path(tmp) / f"{job.job_name}_sbatch.sh"
-            assert sbatch_file.is_file()
-            assert os.access(sbatch_file, os.X_OK)
+        for export in cli_config.exports:
+            assert export.sbatch_file.is_file()
+            assert os.access(export.sbatch_file, os.X_OK)
+
+            assert (export.package_dir / "slurm_compose").is_dir()
 
 
 def test_cli_wait_exec(cli_wait_config: CLIConfig):
     with TemporaryDirectory() as tmp:
-        cli_wait_config.write = tmp
+        cli_wait_config.export_dir = tmp
 
         cli_wait_config.run()
 
@@ -39,7 +39,7 @@ def test_cli_wait_exec(cli_wait_config: CLIConfig):
         assert ok_job.job_name == "ok"
 
         ok_job_result = subprocess.run(
-            [Path(tmp) / f"{ok_job.job_name}_sbatch.sh"],
+            [cli_wait_config.exports[0].sbatch_file],
             capture_output=True,
             text=True,
             check=False,
@@ -53,7 +53,7 @@ def test_cli_wait_exec(cli_wait_config: CLIConfig):
         assert fail_job.job_name == "fail"
 
         fail_job_result = subprocess.run(
-            [Path(tmp) / f"{fail_job.job_name}_sbatch.sh"],
+            [cli_wait_config.exports[1].sbatch_file],
             capture_output=True,
             text=True,
             check=False,
