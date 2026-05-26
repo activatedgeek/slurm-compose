@@ -25,6 +25,9 @@ class CLIConfig:
     export_dir: Annotated[str | Path | None, tyro.conf.arg(aliases=["-d"])] = field(default=None)
     """Export directory. Respects XDG_CACHE_HOME."""
 
+    host: str | None = field(default=None)
+    """Name of remote host. Must be present in SSH config."""
+
     dry: bool = field(default=False)
     """A dry run with no on-disk modifications."""
 
@@ -41,7 +44,7 @@ class CLIConfig:
             for job in self.jobs
         ]
         for export in self.exports:
-            export.run(dry=self.dry)
+            export.sync(host=self.host, dry=self.dry)
 
 
 def main():
