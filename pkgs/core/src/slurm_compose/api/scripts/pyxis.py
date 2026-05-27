@@ -12,7 +12,7 @@ class PyxisScript(SrunScript):
 
     container_image: str | None = field(default=None)
 
-    container_mounts: str | list[str] | None = field(default=None)
+    container_mounts: str | list[str] = field(default_factory=list)
 
     container_workdir: str | None = field(default=None)
 
@@ -22,10 +22,7 @@ class PyxisScript(SrunScript):
         if not self.container_image:
             raise ValueError("container_image cannot be empty.")
 
-        if isinstance(self.container_mounts, list):
-            self.container_mounts = ",".join(self.container_mounts)
-
-        if not self.container_mounts:
-            self.container_mounts = None
+        if isinstance(self.container_mounts, str):
+            self.container_mounts = self.container_mounts.split(",")
 
         super().__post_init__()

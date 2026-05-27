@@ -30,6 +30,8 @@ def fields_to_argv(obj: Script, ignore_keys: str | None = None, equals_separated
             ...
         elif isinstance(arg_val, str):
             arg_val = shlex.quote(arg_val)
+        elif isinstance(arg_val, list):
+            arg_val = ",".join([shlex.quote(str(v)) for v in arg_val])
         elif isinstance(arg_val, Path):
             arg_val = shlex.quote(str(arg_val.absolute()))
         else:

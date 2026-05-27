@@ -1,6 +1,8 @@
 [env]
 _.python.venv = { path = ".venv" }
 
+SCOMPOSE_HOME="{{ config_root }}/.sc"
+
 [tools]
 prek = { version = "latest" }
 uv = { version = "latest" }

@@ -62,7 +62,7 @@ def test_slurm_job_materialize(slurm_job: SlurmJob):
     assert f"#SBATCH --gpus-per-node={slurm_job.gpus_per_node}\n" in materialized_str
     assert f"#SBATCH --ntasks-per-node={slurm_job.ntasks_per_node}\n" in materialized_str
     assert f"#SBATCH --output={slurm_job.output}\n" in materialized_str
-    assert f"#SBATCH --error={slurm_job.error}\n" in materialized_str
+    assert "#SBATCH --error" not in materialized_str
     assert f"#SBATCH --open-mode={slurm_job.open_mode}\n" in materialized_str
 
 
@@ -116,7 +116,7 @@ def test_srun_job_step(srun_job_step: SrunScript):
     assert f"--gpus-per-node {srun_job_step.gpus_per_node}" in command
     assert f"--mem {srun_job_step.mem}" in command
     assert f"--output {srun_job_step.output}" in command
-    assert f"--error {srun_job_step.error}" in command
+    assert "--error" not in command
     assert f"--wait {srun_job_step.wait}" in command
     assert f"--kill-on-bad-exit {srun_job_step.kill_on_bad_exit}" in command
     assert "--exact" in command

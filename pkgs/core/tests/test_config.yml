@@ -1,3 +1,11 @@
+_common:
+  step_defaults: &step_defaults
+    __class__: slurm_compose.api.scripts:PyxisScript
+    container_mounts:
+      - /var/logs:/logs
+      - /var/data:/data
+      - /var/models:/models
+
 jobs:
   eval:
     account: test_account
@@ -9,16 +17,13 @@ jobs:
     extra_argv:
       - --comment='test comment'
     steps:
-      - __class__: slurm_compose.api.scripts:PyxisScript
+      - <<: *step_defaults
         job_name: ray
         nodes: 2
         ntasks_per_node: 1
         gpus_per_node: 0
         overlap: true
         container_image: /var/images/ray.sqsh
-        container_mounts:
-          - /var/code:/code
-          - /var/logs:/logs
         env:
           RAY_RUNTIME_DIR: "$(mktemp -u /logs/.rc/ray-XXXXXXX)"
         command:
@@ -31,17 +36,13 @@ jobs:
           - 104857600
           - --memory
           - 104857600
-      - __class__: slurm_compose.api.scripts:PyxisScript
+      - <<: *step_defaults
         job_name: vllm
         nodes: 2
         ntasks_per_node: 1
         cpus_per_task: 32
         gpus_per_node: 8
         container_image: /var/images/vllm.sqsh
-        container_mounts:
-          - /var/models:/models
-          - /var/code:/code
-          - /var/logs:/logs
         env:
           VLLM_RUNTIME_DIR: "$(mktemp -u /logs/.rc/vllm-XXXXXXX)"
         command:
@@ -59,17 +60,13 @@ jobs:
           - qwen3
           - --reasoning-parser
           - qwen3
-      - __class__: slurm_compose.api.scripts:PyxisScript
+      - <<: *step_defaults
         job_name: rollout
         nodes: 1
         ntasks_per_node: 1
         cpus_per_task: 32
         gpus_per_node: 0
         container_image: /var/images/rollout.sqsh
-        container_mounts:
-          - /var/code:/code
-          - /var/data:/data
-          - /var/logs:/logs
         env:
           MODEL_SERVICE_NAME: vllm
         command:

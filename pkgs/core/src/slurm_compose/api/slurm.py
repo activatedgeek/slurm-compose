@@ -2,10 +2,12 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from pkgutil import resolve_name
-from typing import ClassVar, Literal, Self, get_args, get_origin, get_type_hints
+from typing import ClassVar, Iterator, Literal, Self, get_args, get_origin, get_type_hints
 
 from jinja2 import Environment, FileSystemLoader
 from ruamel.yaml import YAML
+
+from slurm_compose.config import SBATCH_ERROR, SBATCH_OUTPUT
 
 from .scripts import Script
 from .scripts.utils import fields_to_argv, resolve_log_template
@@ -19,10 +21,6 @@ class SlurmJob:
 
     `extra_argv` is a catch all for arguments that are currently part of the typed dataclass.
     """
-
-    _output_template: ClassVar[str] = "%j-%x.log"
-
-    _error_template: ClassVar[str] = "%j-%x.err"
 
     job_name: str | None = field(default=None)
 
@@ -50,6 +48,8 @@ class SlurmJob:
 
     open_mode: Literal["append", "truncate"] = field(default="append")
 
+    array: str | None = field(default=None)
+
     extra_argv: list[str] = field(default_factory=list)
 
     steps: list[Script] = field(default_factory=list)
@@ -68,9 +68,6 @@ class SlurmJob:
             else:
                 self.time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-        self.output = resolve_log_template(self.output, self._output_template)
-        self.error = resolve_log_template(self.error, self._error_template) or self.output
-
     @classmethod
     def fields(cls) -> dict[str]:
         def _get_type(v):
@@ -81,17 +78,12 @@ class SlurmJob:
         return {k: _get_type(v) for k, v in get_type_hints(cls).items()}
 
     @classmethod
-    def from_yaml(
-        cls, file: str | Path, output: str | Path | None = None, error: str | Path | None = None
-    ) -> list[Self]:
+    def from_yaml(cls, file: str | Path) -> Iterator[Self]:
         with open(Path(file)) as f:
             yaml = YAML().load(f)
 
-        jobs = []
         for job_name, job_args in yaml.pop("jobs", {}).items():
             job_args["job_name"] = job_name
-            job_args["output"] = output
-            job_args["error"] = error
 
             steps = []
             for step_idx, step in enumerate(job_args.pop("steps", [])):
@@ -99,21 +91,16 @@ class SlurmJob:
                     raise ValueError(f"Missing __class__ in step {step_idx}")
 
                 step_cls = resolve_name(step.pop("__class__"))
-
-                step_cls_args = {**step}
-                if issubclass(step_cls, Script) and ({"output", "error"} & step_cls.fields().keys()):
-                    step_cls_args.update({"output": output, "error": error})
-
-                step = step_cls(**step_cls_args)
+                step = step_cls(**step)
 
                 steps.append(step)
 
-            job = cls(**job_args, steps=steps)
-            jobs.append(job)
-
-        return jobs
+            yield cls(**job_args, steps=steps)
 
     def materialize(self, template: str = "slurm.sh.j2", template_dir: str | list[str | Path] | None = None) -> str:
+        self.output = resolve_log_template(self.output, SBATCH_OUTPUT)
+        self.error = resolve_log_template(self.error, SBATCH_ERROR)
+
         if isinstance(template_dir, str):
             template_dir = [template_dir]
         template_dir = template_dir or []
@@ -128,7 +115,7 @@ class SlurmJob:
 
         sbatch_argv = fields_to_argv(
             self,
-            ignore_keys={"extra_argv", "steps", "_output_template", "_error_template"},
+            ignore_keys={"extra_argv", "steps"},
             equals_separated=True,
         )
 

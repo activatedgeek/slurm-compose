@@ -24,4 +24,4 @@ dynamic.version = { attr = "slurm_compose.__version__" }
 packages.find.where = ["src"]
 
 [tool.setuptools.package-data]
-"slurm_compose.run" = ["**/*.sh"]
+"slurm_compose.api.scripts" = ["**/*.sh"]

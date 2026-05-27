@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+#MISE description="Run Slurm Compose"
+#MISE quiet=true
+
+slurm-compose "${@}"

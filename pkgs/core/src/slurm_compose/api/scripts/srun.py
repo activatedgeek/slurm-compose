@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar
+
+from slurm_compose.config import SRUN_ERROR, SRUN_OUTPUT
 
 from .base import Script
 from .utils import fields_to_argv, resolve_log_template
@@ -12,10 +13,6 @@ class SrunScript(Script):
 
     Each step is prefixed with srun and appropriate args.
     """
-
-    _output_template: ClassVar[str] = "%j-%x.log"
-
-    _error_template: ClassVar[str] = "%j-%x.err"
 
     job_name: str | None = field(default=None)
 
@@ -53,15 +50,13 @@ class SrunScript(Script):
         if not self.overlap:
             self.overlap = None
 
-        self.output = resolve_log_template(self.output, self._output_template)
-        self.error = resolve_log_template(self.error, self._error_template) or self.output
-
         super().__post_init__()
 
     @property
     def argv(self) -> list[str]:
-        srun_argv = fields_to_argv(
-            self, ignore_keys=Script.fields().keys() | {"extra_argv", "_output_template", "_error_template"}
-        )
+        self.output = resolve_log_template(self.output, SRUN_OUTPUT)
+        self.error = resolve_log_template(self.error, SRUN_ERROR)
+
+        srun_argv = fields_to_argv(self, ignore_keys=Script.fields().keys() | {"extra_argv"})
 
         return [str(arg) for arg in ["srun"] + srun_argv + self.extra_argv + self.command]
