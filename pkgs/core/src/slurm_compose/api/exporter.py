@@ -138,6 +138,8 @@ class SlurmSSHRemote:
             with tarfile.open(tar_file, "w:gz") as tar:
                 tar.add(local_dir, arcname=local_dir.name)
 
+            logger.info(f"Copying {tar_file} to {self.hostname} ({os.path.getsize(tar_file) / (1024**2):.2f} MB)")
+
         if not dry:
             ## Ensure remote export directory.
             try:
@@ -242,7 +244,7 @@ class SlurmExporter:
         else:
             raise NotImplementedError(f"Unsupported yaml config version {version}")
 
-    def bundle(self, mount_dir: str | Path | None = None, dry: bool = False):
+    def bundle(self, mount_dir: str | Path | None = None, dry: bool = False) -> str:
         ## Set sbatch output.
         mount_dir = mount_dir or self.export_dir
         self.job.output = mount_dir / "logs"
@@ -270,17 +272,18 @@ class SlurmExporter:
             self.export_dir.mkdir(parents=True, exist_ok=False)
 
         ## Materialize sbatch file.
+        materialized_sbatch = self.job.materialize()
         if dry:
             logger.warning(f"Dry run. Skipping sbatch materialization at {self.sbatch_file}")
         else:
-            self.sbatch_file.write_text(self.job.materialize())
+            self.sbatch_file.write_text(materialized_sbatch)
             self.sbatch_file.chmod(0o755)
 
         ## Materialize packages to bundle together.
         for package_dir in self.external_package_dirs:
             package_export_dir = self.package_dir / package_dir.name
             if dry:
-                logger.warning(f"Dry run. Skipping package sync to {package_export_dir}")
+                logger.warning(f"Dry run. Skipping package sync for {package_dir}")
             else:
                 shutil.copytree(
                     package_dir,
@@ -288,22 +291,25 @@ class SlurmExporter:
                     ignore=gitignore_filter(
                         package_dir,
                         ignore_files=[
-                            Path(__file__).parent / "python.scignore",
-                            Path.cwd() / ".gitignore",
-                            Path.cwd() / ".scignore",
                             package_dir / ".gitignore",
                             package_dir / ".scignore",
                         ],
                         ignore_patterns=[".git/"],
                     ),
                 )
+                logger.debug(f"Package synced to {package_export_dir}")
 
-    def sync(self, host: SlurmSSHRemote | None = None, dry: bool = False):
-        self.bundle(mount_dir=host.export_dir / self.export_dir.name if host else None, dry=dry)
+        return materialized_sbatch
+
+    def sync(self, host: SlurmSSHRemote | None = None, dry: bool = False) -> dict:
+        info = {}
+
+        info["sbatch"] = self.bundle(mount_dir=host.export_dir / self.export_dir.name if host else None, dry=dry)
+        info["local_dir"] = self.export_dir
 
         if host:
-            sync_dir = host.sync(self.export_dir, dry=dry)
-            logger.info(f"Final bundle from {self.export_dir} synced to {host.hostname}:{sync_dir}")
+            info["remote_dir"] = host.sync(self.export_dir, dry=dry)
+
             if dry:
                 logger.warning(f"Skipping sbatch submission to {host.hostname}.")
             else:
@@ -313,9 +319,8 @@ class SlurmExporter:
                 with open(self.export_dir / ".sync" / "sbatch", "w") as f:
                     f.write(str(slurm_job_id))
 
-                logger.info(f"Sbatch job ID {slurm_job_id} submitted")
+                logger.info(f"sbatch job {slurm_job_id} submitted")
+        else:
+            logger.info(f"Job bundle created at {self.export_dir}")
 
-            return sync_dir
-
-        logger.info(f"Final bundle synced to {self.export_dir}")
-        return self.export_dir
+        return info

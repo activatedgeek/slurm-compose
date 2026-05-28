@@ -1,8 +1,12 @@
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated
 
 import tyro
+from rich.align import Align
+from rich.panel import Panel
+from rich.syntax import Syntax
 
 from slurm_compose.api.exporter import SlurmExporter, SlurmSSHRemote
 from slurm_compose.config import logger
@@ -50,7 +54,19 @@ class CLIConfig:
             self.host = SlurmSSHRemote(self.host)
 
         for export in self.exports:
-            export.sync(host=self.host, dry=self.dry)
+            info = export.sync(host=self.host, dry=self.dry)
+            if self.dry:
+                from slurm_compose.config import console
+
+                if logger.getEffectiveLevel() == logging.DEBUG:
+                    console.log(
+                        Align.center(
+                            Panel(
+                                Syntax(info["sbatch"], "bash", line_numbers=True),
+                                title=f"({export.job.job_name}) sbatch.sh",
+                            )
+                        )
+                    )
 
 
 def main():
