@@ -2,10 +2,9 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from pkgutil import resolve_name
-from typing import ClassVar, Iterator, Literal, Self, get_args, get_origin, get_type_hints
+from typing import ClassVar, Literal, Self, get_args, get_origin, get_type_hints
 
 from jinja2 import Environment, FileSystemLoader
-from ruamel.yaml import YAML
 
 from slurm_compose.config import SBATCH_ERROR, SBATCH_OUTPUT
 
@@ -55,6 +54,8 @@ class SlurmJob:
 
     steps: list[Script] = field(default_factory=list, metadata={"argv": False})
 
+    env: dict[str, str] = field(default_factory=dict, metadata={"argv": False})
+
     def __post_init__(self):
         if not self.job_name:
             raise ValueError("job_name cannot be empty.")
@@ -79,29 +80,18 @@ class SlurmJob:
         return {k: _get_type(v) for k, v in get_type_hints(cls).items()}
 
     @classmethod
-    def from_yaml(cls, file: str | Path) -> Iterator[Self]:
-        with open(Path(file)) as f:
-            yaml = YAML().load(f)
+    def from_dict(cls, **kwargs: dict) -> Self:
+        steps = []
+        for step_idx, step in enumerate(kwargs.pop("steps", [])):
+            if "__class__" not in step:
+                raise ValueError(f"Missing __class__ in step {step_idx}")
 
-        version = str(yaml.pop("version", 1))
+            step_cls = resolve_name(step.pop("__class__"))
+            step = step_cls(**step)
 
-        if version == "1":
-            for job_name, job_args in yaml.pop("jobs", {}).items():
-                job_args["job_name"] = job_name
+            steps.append(step)
 
-                steps = []
-                for step_idx, step in enumerate(job_args.pop("steps", [])):
-                    if "__class__" not in step:
-                        raise ValueError(f"Missing __class__ in step {step_idx}")
-
-                    step_cls = resolve_name(step.pop("__class__"))
-                    step = step_cls(**step)
-
-                    steps.append(step)
-
-                yield cls(**job_args, steps=steps)
-        else:
-            raise NotImplementedError(f"Unsupported yaml config version {version}")
+        return cls(**kwargs, steps=steps)
 
     def materialize(self, template: str = "slurm.sh.j2", template_dir: str | list[str | Path] | None = None) -> str:
         self.output = resolve_log_template(self.output, SBATCH_OUTPUT)
@@ -121,5 +111,6 @@ class SlurmJob:
 
         return template.render(
             sbatch_argv=fields_to_argv(self, equals_separated=True) + (self.extra_argv or []),
+            env=self.env,
             steps=self.steps,
         )

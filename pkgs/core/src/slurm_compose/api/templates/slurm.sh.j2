@@ -8,6 +8,10 @@
 #SBATCH {{ arg }}
 {% endfor %}
 
+{% for k, v in env.items() %}
+export {{ k }}="{{ v }}"
+{% endfor %}
+
 step_pids=()
 {% for step in steps +%}
 ##

@@ -4,8 +4,7 @@ from typing import Annotated
 
 import tyro
 
-from slurm_compose.api.exporter import SlurmExporter
-from slurm_compose.api.slurm import SlurmJob
+from slurm_compose.api.exporter import SlurmExporter, SlurmSSHRemote
 from slurm_compose.config import logger
 
 
@@ -36,18 +35,20 @@ class CLIConfig:
     """A dry run with no on-disk modifications when host is unset."""
 
     def __post_init__(self):
-        self.jobs = []
+        self.exports: list[SlurmExporter] = []
 
-        for job in SlurmJob.from_yaml(self.file):
-            job.account = self.account or job.account
-            job.partition = self.partition or job.partition
-            job.qos = self.qos or job.qos
-            job.time = self.time or job.time
+        for export in SlurmExporter.from_yaml(self.file, export_dir=self.export_dir):
+            export.job.account = self.account or export.job.account
+            export.job.partition = self.partition or export.job.partition
+            export.job.qos = self.qos or export.job.qos
+            export.job.time = self.time or export.job.time
 
-            self.jobs.append(job)
+            self.exports.append(export)
 
     def run(self):
-        self.exports = [SlurmExporter(job=job, export_dir=self.export_dir) for job in self.jobs]
+        if self.host:
+            self.host = SlurmSSHRemote(self.host)
+
         for export in self.exports:
             export.sync(host=self.host, dry=self.dry)
 

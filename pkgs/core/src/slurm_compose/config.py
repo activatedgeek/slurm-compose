@@ -11,12 +11,14 @@ CONFIG_HOME = Path(
     os.getenv("SCOMPOSE_CONFIG_HOME") or Path(os.getenv("XDG_CONFIG_HOME", Path.home() / ".config")) / "slurm-compose"
 )
 
+PROJECT_NAME = os.getenv("SCOMPOSE_PROJECT_NAME")
+
 MOUNT_PATH = os.getenv("SCOMPOSE_MOUNT_PATH", "/sc")
 
 SBATCH_OUTPUT = os.getenv("SCOMPOSE_SBATCH_OUTPUT", r"%j-%x.log")
 SBATCH_ERROR = os.getenv("SCOMPOSE_SBATCH_ERROR", r"%j-%x.err")
-SRUN_OUTPUT = os.getenv("SCOMPOSE_SRUN_OUTPUT", r"%j-%s.${STEP_NAME}.log")
-SRUN_ERROR = os.getenv("SCOMPOSE_SRUN_ERROR", r"%j-%s.${STEP_NAME}.err")
+SRUN_OUTPUT = os.getenv("SCOMPOSE_SRUN_OUTPUT", r"%j.%s-${STEP_NAME}.log")
+SRUN_ERROR = os.getenv("SCOMPOSE_SRUN_ERROR", r"%j.%s-${STEP_NAME}.err")
 
 logging.basicConfig(
     level=os.getenv("LOGLEVEL", "INFO"),

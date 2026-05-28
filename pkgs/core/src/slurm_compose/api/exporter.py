@@ -7,10 +7,12 @@ import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Iterator, Self
 
 from fsspec.implementations.sftp import SFTPFileSystem
+from ruamel.yaml import YAML
 
-from slurm_compose.config import CONFIG_HOME, EXPORTS_HOME, MOUNT_PATH, logger
+from slurm_compose.config import CONFIG_HOME, EXPORTS_HOME, MOUNT_PATH, PROJECT_NAME, logger
 
 from .packager import gitignore_filter
 from .scripts import PyxisScript, SrunScript
@@ -23,17 +25,36 @@ class SlurmSSHRemote:
 
     config_file: str | Path | None = field(default=None)
 
+    hostname: str | None = field(default=None)
+
+    port: int | None = field(default=None)
+
+    user: int | None = field(default=None)
+
+    identityfile: str | Path | None = field(default=None)
+
+    home_dir: str | Path | None = field(default=None)
+
+    sbatch_bin: str | Path | None = field(default=None)
+
     def __post_init__(self):
-        self.config = SlurmSSHRemote.load_config(self.host, config_file=self.config_file)
+        config = SlurmSSHRemote.load_config(self.host, config_file=self.config_file)
+
+        self.hostname = self.hostname or config.get("hostname")
+        self.port = self.port or config.get("port")
+        self.user = self.user or config.get("user")
+        self.identityfile = self.identityfile or config.get("identityfile")
+        self.home_dir = self.home_dir or config.get("home_dir")
+        self.sbatch_bin = self.sbatch_bin or config.get("sbatch_bin")
+
+        self.export_dir = Path(self.home_dir) / "exports"
 
         self.fs = SFTPFileSystem(
-            host=self.config.get("hostname"),
-            port=self.config.get("port"),
-            username=self.config.get("user"),
-            key_filename=self.config.get("identityfile"),
+            host=self.hostname,
+            port=self.port,
+            username=self.user,
+            key_filename=self.identityfile,
         )
-
-        self.export_dir = Path(self.config["home_dir"]) / "exports"
 
     @staticmethod
     def load_config(host, config_file: str | Path = None) -> dict:
@@ -58,6 +79,8 @@ class SlurmSSHRemote:
         if "home_dir" not in host_config:
             host_config["home_dir"] = f"/home/{host_config['user']}/.slurm-compose"
             logger.warning(f"Setting default host home directory {host_config['home_dir']}")
+
+        host_config["sbatch_bin"] = host_config.get("sbatch_bin", "sbatch")
 
         return host_config
 
@@ -94,7 +117,7 @@ class SlurmSSHRemote:
     def exec(self, *args, **kwargs):
         stdin, stdout, stderr = self.fs.client.exec_command(*args, **kwargs)
         if stdout.channel.recv_exit_status():
-            raise RuntimeError(f"Failed exec on {self.host}.")
+            raise RuntimeError(f"Failed exec on {self.host}: {stderr.read().decode()}.")
 
         return stdin, stdout, stderr
 
@@ -154,20 +177,35 @@ class SlurmSSHRemote:
 
         return self.export_dir / local_dir.name
 
+    def submit(self, sbatch_file: str | Path) -> int:
+        _, stdout, _ = self.exec(
+            " ".join(
+                [
+                    str(self.sbatch_bin),
+                    "--parsable",
+                    str(sbatch_file),
+                ]
+            )
+        )
+
+        return int(stdout.read().decode())
+
 
 @dataclass
 class SlurmExporter:
     job: SlurmJob
 
-    name: str | None = field(default=None)
+    name: str | None = field(default=PROJECT_NAME)
 
     external_package_dirs: list[str | Path] = field(default_factory=list)
 
     export_dir: str | Path | None = field(default=None)
 
     def __post_init__(self):
-        self.external_package_dirs = [Path(p).absolute() for p in self.external_package_dirs] + [
-            Path(__file__).parents[1].absolute()
+        self.name = f"{self.name}.{self.job.job_name}" if self.name else self.job.job_name
+
+        self.external_package_dirs = [Path(p).resolve() for p in self.external_package_dirs] + [
+            Path(__file__).parents[1]
         ]
 
         if self.export_dir:
@@ -176,24 +214,45 @@ class SlurmExporter:
             self.export_dir = EXPORTS_HOME
             logger.warning(f"Setting default exports home to {EXPORTS_HOME}.")
 
-        self.export_dir = self.export_dir / f"{self.job.job_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        self.export_dir = self.export_dir / f"{self.name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
         if self.export_dir.exists():
             raise RuntimeError(f"Export directory {self.export_dir} exists.")
 
         self.sbatch_file = self.export_dir / "sbatch.sh"
         self.package_dir = self.export_dir / "pkgs"
 
-    def bundle(self, mount_dir: str | Path | None = None, dry: bool = False):
-        mount_dir = mount_dir or self.export_dir
-        mount_spec = f"{mount_dir}:{MOUNT_PATH}"
-
-        ## Set sbatch output.
         self.job.job_name = self.export_dir.name
+
+    @classmethod
+    def from_yaml(cls, file: str | Path, **kwargs) -> Iterator[Self]:
+        with open(Path(file)) as f:
+            yaml = YAML().load(f)
+
+        version = str(yaml.pop("version", 1))
+
+        if version == "1":
+            external_package_dirs = yaml.pop("external_package_dirs", []) + kwargs.pop("external_package_dirs", [])
+
+            for job_name, job_args in yaml.pop("jobs", {}).items():
+                yield cls(
+                    job=SlurmJob.from_dict(job_name=job_args.pop("job_name", job_name), **job_args),
+                    external_package_dirs=external_package_dirs,
+                    **kwargs,
+                )
+        else:
+            raise NotImplementedError(f"Unsupported yaml config version {version}")
+
+    def bundle(self, mount_dir: str | Path | None = None, dry: bool = False):
+        ## Set sbatch output.
+        mount_dir = mount_dir or self.export_dir
         self.job.output = mount_dir / "logs"
 
         for step_idx, step in enumerate(self.job.steps):
+            mount_spec = f"{mount_dir}:{MOUNT_PATH}"
+
             ## Set bundle mount when available.
             if isinstance(step, PyxisScript) and mount_spec not in step.container_mounts:
+                self.job.env["SCOMPOSE_PKGS"] = f"{MOUNT_PATH}/pkgs"
                 step.container_mounts += [mount_spec]
                 logger.debug(
                     f"Mount {step.container_mounts[-1]} added to {self.job.job_name} at step {step.job_name} (index {step_idx})"
@@ -212,7 +271,7 @@ class SlurmExporter:
 
         ## Materialize sbatch file.
         if dry:
-            logger.warning(f"Dry run. Skipping sbatch materialization at {self.sbatch_file}.")
+            logger.warning(f"Dry run. Skipping sbatch materialization at {self.sbatch_file}")
         else:
             self.sbatch_file.write_text(self.job.materialize())
             self.sbatch_file.chmod(0o755)
@@ -221,7 +280,7 @@ class SlurmExporter:
         for package_dir in self.external_package_dirs:
             package_export_dir = self.package_dir / package_dir.name
             if dry:
-                logger.warning(f"Dry run. Skipping package sync to {package_export_dir}.")
+                logger.warning(f"Dry run. Skipping package sync to {package_export_dir}")
             else:
                 shutil.copytree(
                     package_dir,
@@ -230,6 +289,8 @@ class SlurmExporter:
                         package_dir,
                         ignore_files=[
                             Path(__file__).parent / "python.scignore",
+                            Path.cwd() / ".gitignore",
+                            Path.cwd() / ".scignore",
                             package_dir / ".gitignore",
                             package_dir / ".scignore",
                         ],
@@ -237,15 +298,23 @@ class SlurmExporter:
                     ),
                 )
 
-    def sync(self, host: str = None, dry: bool = False):
-        if host:
-            remote = SlurmSSHRemote(host)
-
-        self.bundle(mount_dir=remote.export_dir / self.export_dir.name if host else None, dry=dry)
+    def sync(self, host: SlurmSSHRemote | None = None, dry: bool = False):
+        self.bundle(mount_dir=host.export_dir / self.export_dir.name if host else None, dry=dry)
 
         if host:
-            sync_dir = remote.sync(self.export_dir, dry=dry)
-            logger.info(f"Final bundle from {self.export_dir} synced to {host}:{sync_dir}")
+            sync_dir = host.sync(self.export_dir, dry=dry)
+            logger.info(f"Final bundle from {self.export_dir} synced to {host.hostname}:{sync_dir}")
+            if dry:
+                logger.warning(f"Skipping sbatch submission to {host.hostname}.")
+            else:
+                logger.info(f"Submitting sbatch file {host.export_dir / self.export_dir.name / 'sbatch.sh'}")
+
+                slurm_job_id = host.submit(host.export_dir / self.export_dir.name / "sbatch.sh")
+                with open(self.export_dir / ".sync" / "sbatch", "w") as f:
+                    f.write(str(slurm_job_id))
+
+                logger.info(f"Sbatch job ID {slurm_job_id} submitted")
+
             return sync_dir
 
         logger.info(f"Final bundle synced to {self.export_dir}")

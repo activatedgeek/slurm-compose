@@ -62,4 +62,4 @@ class SrunScript(Script):
 
         srun_argv = fields_to_argv(self)
 
-        return [str(arg) for arg in ["srun"] + srun_argv + self.extra_argv + self.command]
+        return [str(arg) for arg in ["srun"] + srun_argv + self.extra_argv + ["\\\n"] + self.command]
