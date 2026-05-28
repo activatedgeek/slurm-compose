@@ -6,6 +6,7 @@ import tyro
 
 from slurm_compose.api.exporter import SlurmExporter
 from slurm_compose.api.slurm import SlurmJob
+from slurm_compose.config import logger
 
 
 @dataclass
@@ -52,9 +53,12 @@ class CLIConfig:
 
 
 def main():
-    config = tyro.cli(CLIConfig, prog="slurm-compose")
-
-    config.run()
+    try:
+        config = tyro.cli(CLIConfig, prog="slurm-compose")
+        config.run()
+    except Exception as e:
+        logger.exception(e)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

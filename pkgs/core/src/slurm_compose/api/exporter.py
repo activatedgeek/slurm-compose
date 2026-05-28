@@ -3,7 +3,6 @@ import shlex
 import shutil
 import subprocess
 import tarfile
-import warnings
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import cached_property
@@ -11,7 +10,7 @@ from pathlib import Path
 
 from fsspec.implementations.sftp import SFTPFileSystem
 
-from slurm_compose.config import EXPORTS_HOME, MOUNT_PATH
+from slurm_compose.config import EXPORTS_HOME, MOUNT_PATH, logger
 
 from .packager import gitignore_filter
 from .scripts import PyxisScript, SrunScript
@@ -35,7 +34,12 @@ class SlurmSSHRemote:
             key_filename=self.ssh_config.get("identityfile"),
         )
 
-        self.home_dir = Path(self.home_dir) if self.home_dir else (self.HOME / ".slurm-compose")
+        if self.home_dir:
+            self.home_dir = Path(self.home_dir)
+        else:
+            self.home_dir = self.HOME / ".slurm-compose"
+            logger.warning(f"Setting default host home directory {self.host}:{self.home_dir}")
+
         self.export_dir = self.home_dir / "exports"
 
     @staticmethod
@@ -44,7 +48,7 @@ class SlurmSSHRemote:
             [
                 tuple(line.split(maxsplit=1))
                 for line in subprocess.run(
-                    ["ssh", "-G", host],
+                    ["ssh", "-q", "-G", host],
                     capture_output=True,
                     text=True,
                     check=False,
@@ -59,6 +63,7 @@ class SlurmSSHRemote:
         if "identityfile" in ssh_config:
             ssh_config["identityfile"] = os.path.expanduser(ssh_config["identityfile"])
             if not Path(ssh_config["identityfile"]).exists():
+                logger.warning(f"SSH identity file {ssh_config['identityfile']} not found. Ignoring.")
                 ssh_config.pop("identityfile")
 
         return ssh_config
@@ -75,54 +80,61 @@ class SlurmSSHRemote:
 
         return stdin, stdout, stderr
 
-    def sync(self, local_dir: str | Path) -> Path:
+    def sync(self, local_dir: str | Path, dry: bool = False) -> Path:
         local_dir = Path(local_dir)
         sync_meta_dir = local_dir / ".sync"
 
         ## Pre-sync cleanup to create tar file.
         if sync_meta_dir.exists():
+            logger.warning(f"Deleted existing sync directory {sync_meta_dir}.")
             shutil.rmtree(sync_meta_dir)
 
         ## Create tar to copy (better than copying single files).
         tar_file = local_dir.parent / f"{local_dir.name}.tar.gz"
-        with tarfile.open(tar_file, "w:gz") as tar:
-            tar.add(local_dir, arcname=local_dir.name)
+        if dry:
+            logger.warning(f"Dry run. Skipping tar file creation at {tar_file}.")
+        else:
+            with tarfile.open(tar_file, "w:gz") as tar:
+                tar.add(local_dir, arcname=local_dir.name)
 
-        ## Ensure remote export directory.
-        try:
-            self.fs.mkdir(str(self.export_dir), create_parents=True, mode=0o700)
-        except FileExistsError:
-            ...
+        if not dry:
+            ## Ensure remote export directory.
+            try:
+                self.fs.mkdir(str(self.export_dir), create_parents=True, mode=0o700)
+            except FileExistsError:
+                ...
 
-        ## Copy and untar to remote export directory.
-        try:
-            self.fs.put(str(tar_file), str(self.export_dir / tar_file.name))
+            ## Copy and untar to remote export directory.
+            try:
+                self.fs.put(str(tar_file), str(self.export_dir / tar_file.name))
 
-            self.exec(
-                " && ".join(
-                    [
-                        shlex.join(
-                            [
-                                "tar",
-                                "-xzf",
-                                str(self.export_dir / tar_file.name),
-                                "-C",
-                                str(self.export_dir),
-                            ]
-                        ),
-                        shlex.join(["rm", str(self.export_dir / tar_file.name)]),
-                    ]
+                self.exec(
+                    " && ".join(
+                        [
+                            shlex.join(
+                                [
+                                    "tar",
+                                    "-xzf",
+                                    str(self.export_dir / tar_file.name),
+                                    "-C",
+                                    str(self.export_dir),
+                                ]
+                            ),
+                            shlex.join(["rm", str(self.export_dir / tar_file.name)]),
+                        ]
+                    )
                 )
-            )
-        except:
-            raise
-        finally:
-            tar_file.unlink()
+            except:
+                raise
+            finally:
+                tar_file.unlink()
 
-        ## Post-sync metadata.
-        sync_meta_dir.mkdir()
-        with open(local_dir / ".sync" / self.host, "w") as f:
-            f.write(str(self.export_dir / local_dir.name))
+            ## Post-sync metadata.
+            sync_meta_dir.mkdir()
+            with open(local_dir / ".sync" / self.host, "w") as f:
+                f.write(str(self.export_dir / local_dir.name))
+
+        logger.info(f"Directory synced to {self.host}:{self.export_dir / local_dir.name}")
 
         return self.export_dir / local_dir.name
 
@@ -159,30 +171,38 @@ class SlurmExporter:
         self.job.job_name = self.export_dir.name
         self.job.output = mount_dir / "logs"
 
-        for step in self.job.steps:
+        for step_idx, step in enumerate(self.job.steps):
             ## Set bundle mount when available.
             if isinstance(step, PyxisScript) and mount_spec not in step.container_mounts:
                 step.container_mounts += [mount_spec]
+                logger.debug(
+                    f"Mount {step.container_mounts[-1]} added to {self.job.job_name} at step {step.job_name} (index {step_idx})"
+                )
 
             ## Set output to logs path.
             if isinstance(step, SrunScript):
                 step.output = Path(mount_dir) / "logs"
+                logger.debug(
+                    f"Output {step.output} set to {self.job.job_name} at step {step.job_name} (index {step_idx})"
+                )
 
         ## Create local directory for export.
         if not dry:
             self.export_dir.mkdir(parents=True, exist_ok=False)
 
         ## Materialize sbatch file.
-        if not dry:
+        if dry:
+            logger.warning(f"Dry run. Skipping sbatch materialization at {self.sbatch_file}.")
+        else:
             self.sbatch_file.write_text(self.job.materialize())
             self.sbatch_file.chmod(0o755)
-        else:
-            warnings.warn(f"Dry run. Skipping sbatch file {self.sbatch_file}.", RuntimeWarning)
 
         ## Materialize packages to bundle together.
         for package_dir in self.external_package_dirs:
             package_export_dir = self.package_dir / package_dir.name
-            if not dry:
+            if dry:
+                logger.warning(f"Dry run. Skipping package sync to {package_export_dir}.")
+            else:
                 shutil.copytree(
                     package_dir,
                     package_export_dir,
@@ -196,19 +216,17 @@ class SlurmExporter:
                         ignore_patterns=[".git/"],
                     ),
                 )
-            else:
-                warnings.warn(f"Dry run. Skipping sync {package_export_dir}.", RuntimeWarning)
 
     def sync(self, host: str = None, dry: bool = False):
         if host:
             remote = SlurmSSHRemote(host)
 
-        self.bundle(mount_dir=remote.export_dir / self.export_dir.name if host else None, dry=False if host else dry)
+        self.bundle(mount_dir=remote.export_dir / self.export_dir.name if host else None, dry=dry)
 
         if host:
-            if not dry:
-                return remote.sync(self.export_dir)
-            else:
-                warnings.warn(f"Dry run. Skipping sync to {host}.", RuntimeWarning)
+            sync_dir = remote.sync(self.export_dir, dry=dry)
+            logger.info(f"Final bundle synced to {host}:{sync_dir}")
+            return sync_dir
 
+        logger.info(f"Final bundle synced to {self.export_dir}")
         return self.export_dir
