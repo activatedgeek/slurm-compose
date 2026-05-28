@@ -1,0 +1,9 @@
+[empty]
+use_ssh_agent = false
+home_dir = "/home"
+
+[test]
+use_ssh_agent = false
+hostname = "example.com"
+user = "test"
+identityfile = "/etc/config/ssh.id"

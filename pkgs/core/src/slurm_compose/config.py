@@ -7,7 +7,9 @@ from rich.logging import RichHandler
 HOME = Path(os.getenv("SCOMPOSE_HOME") or Path.cwd() / ".slurm-compose")
 EXPORTS_HOME = HOME / "exports"
 
-CONFIG_HOME = Path(os.getenv("SCOMPOSE_CONFIG_HOME") or HOME / "config")
+CONFIG_HOME = Path(
+    os.getenv("SCOMPOSE_CONFIG_HOME") or Path(os.getenv("XDG_CONFIG_HOME", Path.home() / ".config")) / "slurm-compose"
+)
 
 MOUNT_PATH = os.getenv("SCOMPOSE_MOUNT_PATH", "/sc")
 

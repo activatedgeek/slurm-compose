@@ -3,14 +3,14 @@ import shlex
 import shutil
 import subprocess
 import tarfile
+import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime
-from functools import cached_property
 from pathlib import Path
 
 from fsspec.implementations.sftp import SFTPFileSystem
 
-from slurm_compose.config import EXPORTS_HOME, MOUNT_PATH, logger
+from slurm_compose.config import CONFIG_HOME, EXPORTS_HOME, MOUNT_PATH, logger
 
 from .packager import gitignore_filter
 from .scripts import PyxisScript, SrunScript
@@ -21,30 +21,49 @@ from .slurm import SlurmJob
 class SlurmSSHRemote:
     host: str
 
-    ## FIXME: read all additional host config from CONFIG_HOME.
-    home_dir: str | Path | None = field(default=os.getenv("SCOMPOSE_REMOTE_HOME"))
+    config_file: str | Path | None = field(default=None)
 
     def __post_init__(self):
-        self.ssh_config = SlurmSSHRemote.get_ssh_config(self.host)
+        self.config = SlurmSSHRemote.load_config(self.host, config_file=self.config_file)
 
         self.fs = SFTPFileSystem(
-            host=self.ssh_config.get("hostname"),
-            port=self.ssh_config.get("port"),
-            username=self.ssh_config.get("user"),
-            key_filename=self.ssh_config.get("identityfile"),
+            host=self.config.get("hostname"),
+            port=self.config.get("port"),
+            username=self.config.get("user"),
+            key_filename=self.config.get("identityfile"),
         )
 
-        if self.home_dir:
-            self.home_dir = Path(self.home_dir)
-        else:
-            self.home_dir = self.HOME / ".slurm-compose"
-            logger.warning(f"Setting default host home directory {self.host}:{self.home_dir}")
+        self.export_dir = Path(self.config["home_dir"]) / "exports"
 
-        self.export_dir = self.home_dir / "exports"
+    @staticmethod
+    def load_config(host, config_file: str | Path = None) -> dict:
+        host_config_file = Path(config_file or (CONFIG_HOME / "hosts.toml"))
+        host_config = {}
+
+        if host_config_file.exists():
+            with open(host_config_file, "rb") as f:
+                config = tomllib.load(f)
+
+            if host in config:
+                host_config = config[host]
+            else:
+                logger.warning(f"Missing config entry for {host}.")
+
+        if host_config.pop("use_ssh_agent", True):
+            logger.info(f"Loading {host} config from SSH agent.")
+            host_config = {**SlurmSSHRemote.get_ssh_config(host), **host_config}
+
+        assert "user" in host_config, f"Missing user in {host} config."
+
+        if "home_dir" not in host_config:
+            host_config["home_dir"] = f"/home/{host_config['user']}/.slurm-compose"
+            logger.warning(f"Setting default host home directory {host_config['home_dir']}")
+
+        return host_config
 
     @staticmethod
     def get_ssh_config(host):
-        ssh_config = dict(
+        raw_ssh_config = dict(
             [
                 tuple(line.split(maxsplit=1))
                 for line in subprocess.run(
@@ -57,8 +76,12 @@ class SlurmSSHRemote:
             ]
         )
 
-        if "port" in ssh_config:
-            ssh_config["port"] = int(ssh_config["port"])
+        ssh_config = {
+            "hostname": raw_ssh_config.get("hostname"),
+            "port": int(raw_ssh_config.get("port", 22)),
+            "user": raw_ssh_config.get("user"),
+            "identityfile": raw_ssh_config.get("identityfile"),
+        }
 
         if "identityfile" in ssh_config:
             ssh_config["identityfile"] = os.path.expanduser(ssh_config["identityfile"])
@@ -67,11 +90,6 @@ class SlurmSSHRemote:
                 ssh_config.pop("identityfile")
 
         return ssh_config
-
-    @cached_property
-    def HOME(self) -> Path:
-        _, stdout, _ = self.exec("echo $HOME")
-        return Path(stdout.read().decode().strip())
 
     def exec(self, *args, **kwargs):
         stdin, stdout, stderr = self.fs.client.exec_command(*args, **kwargs)
@@ -134,8 +152,6 @@ class SlurmSSHRemote:
             with open(local_dir / ".sync" / self.host, "w") as f:
                 f.write(str(self.export_dir / local_dir.name))
 
-        logger.info(f"Directory synced to {self.host}:{self.export_dir / local_dir.name}")
-
         return self.export_dir / local_dir.name
 
 
@@ -154,10 +170,14 @@ class SlurmExporter:
             Path(__file__).parents[1].absolute()
         ]
 
-        self.export_dir = (
-            Path(self.export_dir) if self.export_dir else EXPORTS_HOME
-        ) / f"{self.job.job_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        if self.export_dir.is_dir():
+        if self.export_dir:
+            self.export_dir = Path(self.export_dir)
+        else:
+            self.export_dir = EXPORTS_HOME
+            logger.warning(f"Setting default exports home to {EXPORTS_HOME}.")
+
+        self.export_dir = self.export_dir / f"{self.job.job_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        if self.export_dir.exists():
             raise RuntimeError(f"Export directory {self.export_dir} exists.")
 
         self.sbatch_file = self.export_dir / "sbatch.sh"
@@ -225,7 +245,7 @@ class SlurmExporter:
 
         if host:
             sync_dir = remote.sync(self.export_dir, dry=dry)
-            logger.info(f"Final bundle synced to {host}:{sync_dir}")
+            logger.info(f"Final bundle from {self.export_dir} synced to {host}:{sync_dir}")
             return sync_dir
 
         logger.info(f"Final bundle synced to {self.export_dir}")

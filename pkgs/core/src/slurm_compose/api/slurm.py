@@ -83,20 +83,25 @@ class SlurmJob:
         with open(Path(file)) as f:
             yaml = YAML().load(f)
 
-        for job_name, job_args in yaml.pop("jobs", {}).items():
-            job_args["job_name"] = job_name
+        version = str(yaml.pop("version", 1))
 
-            steps = []
-            for step_idx, step in enumerate(job_args.pop("steps", [])):
-                if "__class__" not in step:
-                    raise ValueError(f"Missing __class__ in step {step_idx}")
+        if version == "1":
+            for job_name, job_args in yaml.pop("jobs", {}).items():
+                job_args["job_name"] = job_name
 
-                step_cls = resolve_name(step.pop("__class__"))
-                step = step_cls(**step)
+                steps = []
+                for step_idx, step in enumerate(job_args.pop("steps", [])):
+                    if "__class__" not in step:
+                        raise ValueError(f"Missing __class__ in step {step_idx}")
 
-                steps.append(step)
+                    step_cls = resolve_name(step.pop("__class__"))
+                    step = step_cls(**step)
 
-            yield cls(**job_args, steps=steps)
+                    steps.append(step)
+
+                yield cls(**job_args, steps=steps)
+        else:
+            raise NotImplementedError(f"Unsupported yaml config version {version}")
 
     def materialize(self, template: str = "slurm.sh.j2", template_dir: str | list[str | Path] | None = None) -> str:
         self.output = resolve_log_template(self.output, SBATCH_OUTPUT)
