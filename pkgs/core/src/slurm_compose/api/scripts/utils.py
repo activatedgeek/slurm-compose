@@ -50,7 +50,9 @@ def fields_to_argv(obj: Script, ignore_keys: str | None = None, equals_separated
         [
             _handle_arg(k)
             for k in type(obj).fields().keys()
-            if k not in (ignore_keys or set()) and getattr(obj, k) is not None
+            if k not in (ignore_keys or set())
+            and getattr(obj, k) is not None
+            and type(obj).__dataclass_fields__[k].metadata.get("argv", True)
         ],
         [],
     )

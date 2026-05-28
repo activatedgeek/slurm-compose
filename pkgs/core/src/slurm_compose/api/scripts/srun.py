@@ -38,7 +38,7 @@ class SrunScript(Script):
 
     overlap: bool = field(default=False)
 
-    extra_argv: list[str] = field(default_factory=list)
+    extra_argv: list[str] = field(default_factory=list, metadata={"argv": False})
 
     def __post_init__(self):
         if not self.job_name:
@@ -60,6 +60,6 @@ class SrunScript(Script):
         self.output = resolve_log_template(self.output, SRUN_OUTPUT)
         self.error = resolve_log_template(self.error, SRUN_ERROR)
 
-        srun_argv = fields_to_argv(self, ignore_keys=Script.fields().keys() | {"extra_argv"})
+        srun_argv = fields_to_argv(self)
 
         return [str(arg) for arg in ["srun"] + srun_argv + self.extra_argv + self.command]

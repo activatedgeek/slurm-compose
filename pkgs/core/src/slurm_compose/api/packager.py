@@ -11,7 +11,7 @@ def gitignore_filter(
     ignore_patterns = ignore_patterns or []
 
     ignore_lines = sum([f.read_text().splitlines() for f in ignore_files if f.exists()], []) + ignore_patterns
-    spec = PathSpec.from_lines("gitwildmatch", ignore_lines)
+    spec = PathSpec.from_lines("gitignore", ignore_lines)
 
     def ignore(dirpath, names):
         d = Path(dirpath).resolve()

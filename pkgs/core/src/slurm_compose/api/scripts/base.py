@@ -7,11 +7,14 @@ class Script:
     """Slurm job step script.
 
     Sets up the command and environment to run in sbatch file.
+
+    Any field marked with metadata argv=False is not used for automatic argv construction
+    and must be handled separately.
     """
 
-    command: str | list[str] = field(default_factory=list)
+    command: str | list[str] = field(default_factory=list, metadata={"argv": False})
 
-    env: dict[str, str] = field(default_factory=dict)
+    env: dict[str, str] = field(default_factory=dict, metadata={"argv": False})
 
     def __post_init__(self):
         if not self.command:

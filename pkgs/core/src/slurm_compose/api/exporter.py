@@ -138,14 +138,13 @@ class SlurmExporter:
     export_dir: str | Path | None = field(default=None)
 
     def __post_init__(self):
-        self.name = self.name or self.job.job_name
         self.external_package_dirs = [Path(p).absolute() for p in self.external_package_dirs] + [
             Path(__file__).parents[1].absolute()
         ]
 
         self.export_dir = (
             Path(self.export_dir) if self.export_dir else EXPORTS_HOME
-        ) / f"{self.name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        ) / f"{self.job.job_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
         if self.export_dir.is_dir():
             raise RuntimeError(f"Export directory {self.export_dir} exists.")
 
@@ -157,6 +156,7 @@ class SlurmExporter:
         mount_spec = f"{mount_dir}:{MOUNT_PATH}"
 
         ## Set sbatch output.
+        self.job.job_name = self.export_dir.name
         self.job.output = mount_dir / "logs"
 
         for step in self.job.steps:

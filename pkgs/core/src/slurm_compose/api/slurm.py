@@ -50,9 +50,10 @@ class SlurmJob:
 
     array: str | None = field(default=None)
 
-    extra_argv: list[str] = field(default_factory=list)
+    extra_argv: list[str] = field(default_factory=list, metadata={"argv": False})
+    """Must be equals separated to maintain template structure."""
 
-    steps: list[Script] = field(default_factory=list)
+    steps: list[Script] = field(default_factory=list, metadata={"argv": False})
 
     def __post_init__(self):
         if not self.job_name:
@@ -113,13 +114,7 @@ class SlurmJob:
 
         template = env.get_template(template)
 
-        sbatch_argv = fields_to_argv(
-            self,
-            ignore_keys={"extra_argv", "steps"},
-            equals_separated=True,
-        )
-
         return template.render(
-            sbatch_argv=sbatch_argv + (self.extra_argv or []),
+            sbatch_argv=fields_to_argv(self, equals_separated=True) + (self.extra_argv or []),
             steps=self.steps,
         )

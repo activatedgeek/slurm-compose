@@ -36,7 +36,7 @@ def test_cli_wait_exec(cli_wait_config: CLIConfig):
         cli_wait_config.run()
 
         ok_job = cli_wait_config.jobs[0]
-        assert ok_job.job_name == "ok"
+        assert ok_job.job_name.startswith("ok-")
 
         ok_job_result = subprocess.run(
             [cli_wait_config.exports[0].sbatch_file],
@@ -50,7 +50,7 @@ def test_cli_wait_exec(cli_wait_config: CLIConfig):
         assert "Finished Step 2." not in ok_job_result.stdout
 
         fail_job = cli_wait_config.jobs[1]
-        assert fail_job.job_name == "fail"
+        assert fail_job.job_name.startswith("fail-")
 
         fail_job_result = subprocess.run(
             [cli_wait_config.exports[1].sbatch_file],
