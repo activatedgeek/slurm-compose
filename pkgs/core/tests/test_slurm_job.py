@@ -118,7 +118,7 @@ def test_srun_job_step(srun_job_step: SrunScript):
     assert f"--output {srun_job_step.output}" in command
     assert "--error" not in command
     assert f"--wait {srun_job_step.wait}" in command
-    assert f"--kill-on-bad-exit {srun_job_step.kill_on_bad_exit}" in command
+    assert "--kill-on-bad-exit" in command
     assert "--exact" in command
     assert "--overlap" not in command
     assert f"{' '.join(srun_job_step.extra_argv)}" in command
@@ -129,6 +129,7 @@ def test_srun_job_step_nullables(srun_job_step: SrunScript):
     srun_job_step.mem = None
     srun_job_step.exact = None
     srun_job_step.overlap = True
+    srun_job_step.kill_on_bad_exit = None
 
     command = srun_job_step.args
 
@@ -136,3 +137,4 @@ def test_srun_job_step_nullables(srun_job_step: SrunScript):
     assert "--mem" not in command
     assert "--exact" not in command
     assert "--overlap" in command
+    assert "--kill-on-bad-exit" not in command

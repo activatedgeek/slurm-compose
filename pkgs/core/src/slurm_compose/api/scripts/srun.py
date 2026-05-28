@@ -32,7 +32,7 @@ class SrunScript(Script):
 
     wait: int = field(default=10)
 
-    kill_on_bad_exit: int = field(default=1)
+    kill_on_bad_exit: bool = field(default=True)
 
     exact: bool = field(default=True)
 
@@ -43,6 +43,9 @@ class SrunScript(Script):
     def __post_init__(self):
         if not self.job_name:
             raise ValueError("job_name cannot be empty.")
+
+        if not self.kill_on_bad_exit:
+            self.kill_on_bad_exit = None
 
         if not self.exact:
             self.exact = None

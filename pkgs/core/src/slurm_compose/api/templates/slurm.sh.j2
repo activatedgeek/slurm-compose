@@ -11,13 +11,16 @@
 step_pids=()
 {% for step in steps +%}
 ##
-# Step {{ loop.index }}
+# Step {{ loop.index0 }}
 #
 {% for k, v in step.env.items() %}
 export {{ k }}="{{ v }}"
 {% endfor %}
 {
-STEP_ID={{ loop.index }}
+STEP_ID={{ loop.index0 }}
+{% if step.job_name is defined %}
+STEP_NAME={{ step.job_name }}
+{% endif %}
 {{ step.args | trim }}
 } & step_pids+=($!)
 # unset {{ step.env.keys() | join(" ") }}

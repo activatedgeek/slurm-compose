@@ -45,9 +45,9 @@ def test_cli_wait_exec(cli_wait_config: CLIConfig):
             check=False,
         )
         assert ok_job_result.returncode == 0
-        assert "Finished Step 1." not in ok_job_result.stdout
-        assert "Finished Step 2." in ok_job_result.stdout
-        assert "Finished Step 3." not in ok_job_result.stdout
+        assert "Finished Step 0." not in ok_job_result.stdout
+        assert "Finished Step 1." in ok_job_result.stdout
+        assert "Finished Step 2." not in ok_job_result.stdout
 
         fail_job = cli_wait_config.jobs[1]
         assert fail_job.job_name == "fail"
