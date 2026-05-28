@@ -12,7 +12,15 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
 ]
 dynamic = ["version"]
-dependencies = ["fsspec", "Jinja2", "paramiko", "rich", "ruamel.yaml", "tyro"]
+dependencies = [
+    "fsspec",
+    "Jinja2",
+    "paramiko",
+    "pathspec",
+    "rich",
+    "ruamel.yaml",
+    "tyro"
+]
 optional-dependencies.test = ["prek", "pytest"]
 
 scripts.slurm-compose = "slurm_compose.cli:main"
@@ -25,3 +33,4 @@ packages.find.where = ["src"]
 
 [tool.setuptools.package-data]
 "slurm_compose.api.scripts" = ["**/*.sh"]
+"slurm_compose.api" = ["**/*.scignore"]

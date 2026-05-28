@@ -13,6 +13,7 @@ from fsspec.implementations.sftp import SFTPFileSystem
 
 from slurm_compose.config import EXPORTS_HOME, MOUNT_PATH
 
+from .packager import gitignore_filter
 from .scripts import PyxisScript, SrunScript
 from .slurm import SlurmJob
 
@@ -182,7 +183,19 @@ class SlurmExporter:
         for package_dir in self.external_package_dirs:
             package_export_dir = self.package_dir / package_dir.name
             if not dry:
-                shutil.copytree(package_dir, package_export_dir)
+                shutil.copytree(
+                    package_dir,
+                    package_export_dir,
+                    ignore=gitignore_filter(
+                        package_dir,
+                        ignore_files=[
+                            Path(__file__).parent / "python.scignore",
+                            package_dir / ".gitignore",
+                            package_dir / ".scignore",
+                        ],
+                        ignore_patterns=[".git/"],
+                    ),
+                )
             else:
                 warnings.warn(f"Dry run. Skipping sync {package_export_dir}.", RuntimeWarning)
 
