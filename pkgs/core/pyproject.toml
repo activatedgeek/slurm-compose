@@ -17,6 +17,7 @@ dependencies = [
     "Jinja2",
     "paramiko",
     "pathspec",
+    "pytimeparse",
     "rich",
     "ruamel.yaml",
     "tyro"

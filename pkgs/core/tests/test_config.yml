@@ -11,7 +11,7 @@ jobs:
     account: test_account
     partition: test_partition
     qos: test_qos
-    time: 01:00:00
+    time: 1h
     nodes: 2
     gpus_per_node: 8
     extra_argv:

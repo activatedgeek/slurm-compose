@@ -30,7 +30,7 @@ class CLIConfig:
     """sbatch qos -q/--qos."""
 
     time: Annotated[str | None, tyro.conf.arg(aliases=["-t"])] = field(default=None)
-    """sbatch time -t/--time."""
+    """sbatch time -t/--time. supports strings via pytimeparse."""
 
     interactive: bool = field(default=False)
     """Use pre-registered interactive partitions from host configuration."""

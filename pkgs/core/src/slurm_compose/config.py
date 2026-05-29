@@ -4,8 +4,6 @@ from pathlib import Path
 
 from rich.logging import RichHandler
 
-VERSION = "0.2.0"
-
 HOME = Path(os.getenv("SCOMPOSE_HOME") or Path.cwd() / ".slurm-compose")
 EXPORTS_HOME = HOME / "exports"
 

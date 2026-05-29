@@ -5,6 +5,7 @@ from pkgutil import resolve_name
 from typing import ClassVar, Literal, Self, get_args, get_origin, get_type_hints
 
 from jinja2 import Environment, FileSystemLoader
+from pytimeparse import parse as timeparse
 
 from slurm_compose.config import SBATCH_ERROR, SBATCH_OUTPUT
 
@@ -96,6 +97,12 @@ class SlurmJob:
     def pre_materialize(self):
         self.output = resolve_log_template(self.output, SBATCH_OUTPUT)
         self.error = resolve_log_template(self.error, SBATCH_ERROR)
+
+        ## Check for human-readable times.
+        if isinstance(self.time, str):
+            parsed_seconds = timeparse(self.time, granularity="seconds")
+            if parsed_seconds:
+                self.time = timedelta(seconds=parsed_seconds)
 
         if isinstance(self.time, timedelta):
             total_seconds = int(self.time.total_seconds())

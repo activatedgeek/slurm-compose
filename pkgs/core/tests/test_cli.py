@@ -23,6 +23,7 @@ def test_cli(cli_config: CLIConfig):
         cli_config.run()
 
         for export in cli_config.exports:
+            assert export.job.time == "01:00:00"
             assert export.sbatch_file.exists()
             assert os.access(export.sbatch_file, os.X_OK)
 
