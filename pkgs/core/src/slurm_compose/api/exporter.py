@@ -7,6 +7,7 @@ import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from string import Template
 from typing import Iterator, Self
 
 from fsspec.implementations.sftp import SFTPFileSystem
@@ -241,11 +242,18 @@ class SlurmExporter:
         self.package_dir = self.export_dir / "pkgs"
 
     @classmethod
-    def from_yaml(cls, file: str | Path, job_kwargs: dict | None = None, **kwargs) -> Iterator[Self]:
+    def from_yaml(
+        cls, file: str | Path, data_file: str | Path | None = None, job_kwargs: dict | None = None, **kwargs
+    ) -> Iterator[Self]:
         job_kwargs = {k: v for k, v in (job_kwargs or {}).items() if v is not None}
 
-        with open(Path(file)) as f:
-            yaml = YAML().load(f)
+        ## Apply template variable substitution before parsing YAML.
+        yaml_data = YAML().load(Path(data_file).read_text()) if data_file else {}
+        yaml_str = Template(Path(file).read_text()).safe_substitute(
+            **{k: v for k, v in yaml_data.items() if v is not None}
+        )
+
+        yaml = YAML().load(yaml_str)
 
         version = str(yaml.pop("version", 1))
 
@@ -253,7 +261,7 @@ class SlurmExporter:
             external_package_dirs = yaml.pop("external_package_dirs", []) + kwargs.pop("external_package_dirs", [])
 
             for job_name, job_args in yaml.pop("jobs", {}).items():
-                ## Always respect job_name from file config.
+                ## Always respect job_name from YAML config.
                 job_args.pop("job_name", None)
                 job_kwargs.pop("job_name", None)
 
@@ -291,6 +299,7 @@ class SlurmExporter:
 
         self.job.maybe_update(**maybe_updates)
         self.job.maybe_update(**force_updates, force=True)
+        self.job.env["SCOMPOSE_JOB"] = "1"
 
         ## Remove items no longer necessary for steps.
         force_updates.pop("job_name", None)

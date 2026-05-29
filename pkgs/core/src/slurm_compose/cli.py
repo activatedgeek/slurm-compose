@@ -15,7 +15,10 @@ from slurm_compose.config import logger
 @dataclass
 class CLIConfig:
     file: Annotated[str | Path, tyro.conf.arg(aliases=["-f"])]
-    """Path to slurm compose file."""
+    """Path to slurm compose template file."""
+
+    data_file: Annotated[str | Path | None, tyro.conf.arg(aliases=["-d"])] = field(default=None)
+    """Path to slurm compose template data file for variable substitution."""
 
     host: Annotated[str | None, tyro.conf.arg(aliases=["-H"])] = field(default=None)
     """Name of remote host. Must be resolvable from ssh agent."""
@@ -38,7 +41,7 @@ class CLIConfig:
     cpu: bool = field(default=False)
     """Use pre-registered cpu partitions from host configuration."""
 
-    export_dir: Annotated[str | Path | None, tyro.conf.arg(aliases=["-d"])] = field(default=None)
+    export_dir: str | Path | None = field(default=None)
     """Export directory."""
 
     dry: bool = field(default=False)
@@ -48,6 +51,7 @@ class CLIConfig:
         self.exports: list[SlurmExporter] = list(
             SlurmExporter.from_yaml(
                 self.file,
+                data_file=self.data_file,
                 export_dir=self.export_dir,
                 job_kwargs={
                     "account": self.account,
