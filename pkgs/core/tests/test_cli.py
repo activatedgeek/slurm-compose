@@ -23,7 +23,7 @@ def test_cli(cli_config: CLIConfig):
         cli_config.run()
 
         for export in cli_config.exports:
-            assert export.sbatch_file.is_file()
+            assert export.sbatch_file.exists()
             assert os.access(export.sbatch_file, os.X_OK)
 
             assert (export.package_dir / "slurm_compose").is_dir()
@@ -36,7 +36,7 @@ def test_cli_wait_exec(cli_wait_config: CLIConfig):
         cli_wait_config.run()
 
         ok_job = cli_wait_config.exports[0].job
-        assert ok_job.job_name.startswith("ok-")
+        assert ok_job.job_name.startswith("ok.")
 
         ok_job_result = subprocess.run(
             [cli_wait_config.exports[0].sbatch_file],
@@ -50,7 +50,7 @@ def test_cli_wait_exec(cli_wait_config: CLIConfig):
         assert "Finished Step 2." not in ok_job_result.stdout
 
         fail_job = cli_wait_config.exports[1].job
-        assert fail_job.job_name.startswith("fail-")
+        assert fail_job.job_name.startswith("fail.")
 
         fail_job_result = subprocess.run(
             [cli_wait_config.exports[1].sbatch_file],

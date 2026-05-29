@@ -1,1 +1,6 @@
-__version__ = "0.1.0"
+from .config import VERSION
+
+## Maintain convention.
+__version__ = VERSION
+
+__all__ = ["__version__"]

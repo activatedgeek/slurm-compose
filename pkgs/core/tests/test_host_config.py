@@ -16,4 +16,4 @@ def test_host():
     assert config.get("user") == "test"
     assert config.get("identityfile") == "/etc/config/ssh.id"
     assert config.get("home_dir") == "/home/test/.slurm-compose"
-    assert config.get("sbatch_bin") == "sbatch"
+    assert config.get("sbatch").get("bin") == "sbatch"

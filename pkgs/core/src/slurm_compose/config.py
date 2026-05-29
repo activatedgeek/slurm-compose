@@ -4,6 +4,8 @@ from pathlib import Path
 
 from rich.logging import RichHandler
 
+VERSION = "0.2.0"
+
 HOME = Path(os.getenv("SCOMPOSE_HOME") or Path.cwd() / ".slurm-compose")
 EXPORTS_HOME = HOME / "exports"
 
@@ -21,7 +23,7 @@ SRUN_OUTPUT = os.getenv("SCOMPOSE_SRUN_OUTPUT", r"%j.%s-${STEP_NAME}.log")
 SRUN_ERROR = os.getenv("SCOMPOSE_SRUN_ERROR", r"%j.%s-${STEP_NAME}.err")
 
 logging.basicConfig(
-    level=os.getenv("LOGLEVEL", "INFO"),
+    level=os.getenv("SCOMPOSE_LOGLEVEL", "INFO"),
     format="%(message)s",
     datefmt="[%X]",
     handlers=[RichHandler(markup=True)],

@@ -9,7 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 from slurm_compose.config import SBATCH_ERROR, SBATCH_OUTPUT
 
 from .scripts import Script
-from .scripts.utils import fields_to_argv, resolve_log_template
+from .scripts.utils import fields_to_argv, maybe_update_fields, resolve_log_template
 
 
 @dataclass
@@ -19,6 +19,10 @@ class SlurmJob:
     All these arguments are passed to sbatch. See https://slurm.schedmd.com/sbatch.html for docs.
 
     `extra_argv` is a catch all for arguments that are currently part of the typed dataclass.
+
+    Always use `maybe_update` method to ensure the fields are correctly in place, which calls
+    the `pre_materialize` method (`materialize` always calls `pre_materialize`). `pre_materialize`
+    method is idempotent.
     """
 
     job_name: str | None = field(default=None)
@@ -60,15 +64,7 @@ class SlurmJob:
         if not self.job_name:
             raise ValueError("job_name cannot be empty.")
 
-        if isinstance(self.time, timedelta):
-            total_seconds = int(self.time.total_seconds())
-            days, remainder = divmod(total_seconds, 86400)
-            hours, remainder = divmod(remainder, 3600)
-            minutes, seconds = divmod(remainder, 60)
-            if days > 0:
-                self.time = f"{days}-{hours:02d}:{minutes:02d}:{seconds:02d}"
-            else:
-                self.time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        self.pre_materialize()
 
     @classmethod
     def fields(cls) -> dict[str]:
@@ -93,9 +89,29 @@ class SlurmJob:
 
         return cls(**kwargs, steps=steps)
 
-    def materialize(self, template: str = "slurm.sh.j2", template_dir: str | list[str | Path] | None = None) -> str:
+    def maybe_update(self, force: bool = False, **kwargs):
+        maybe_update_fields(self, force=force, **kwargs)
+        self.pre_materialize()
+
+    def pre_materialize(self):
         self.output = resolve_log_template(self.output, SBATCH_OUTPUT)
         self.error = resolve_log_template(self.error, SBATCH_ERROR)
+
+        if isinstance(self.time, timedelta):
+            total_seconds = int(self.time.total_seconds())
+            days, remainder = divmod(total_seconds, 86400)
+            hours, remainder = divmod(remainder, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            if days > 0:
+                self.time = f"{days}-{hours:02d}:{minutes:02d}:{seconds:02d}"
+            else:
+                self.time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+        if isinstance(self.gpus_per_node, int) and self.gpus_per_node < 0:
+            self.gpus_per_node = None
+
+    def materialize(self, template: str = "slurm.sh.j2", template_dir: str | list[str | Path] | None = None) -> str:
+        self.pre_materialize()
 
         if isinstance(template_dir, str):
             template_dir = [template_dir]

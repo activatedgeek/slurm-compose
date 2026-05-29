@@ -32,26 +32,36 @@ class CLIConfig:
     time: Annotated[str | None, tyro.conf.arg(aliases=["-t"])] = field(default=None)
     """sbatch time -t/--time."""
 
+    interactive: bool = field(default=False)
+    """Use pre-registered interactive partitions from host configuration."""
+
+    cpu: bool = field(default=False)
+    """Use pre-registered cpu partitions from host configuration."""
+
     export_dir: Annotated[str | Path | None, tyro.conf.arg(aliases=["-d"])] = field(default=None)
     """Export directory."""
 
     dry: bool = field(default=False)
     """A dry run with no on-disk modifications when host is unset."""
 
-    def __post_init__(self):
-        self.exports: list[SlurmExporter] = []
-
-        for export in SlurmExporter.from_yaml(self.file, export_dir=self.export_dir):
-            export.job.account = self.account or export.job.account
-            export.job.partition = self.partition or export.job.partition
-            export.job.qos = self.qos or export.job.qos
-            export.job.time = self.time or export.job.time
-
-            self.exports.append(export)
-
     def run(self):
+        self.exports: list[SlurmExporter] = list(
+            SlurmExporter.from_yaml(
+                self.file,
+                export_dir=self.export_dir,
+                job_kwargs={
+                    "account": self.account,
+                    "partition": self.partition,
+                    "qos": self.qos,
+                    "time": self.time,
+                },
+            )
+        )
+
         if self.host:
-            self.host = SlurmSSHRemote(self.host)
+            self.host = SlurmSSHRemote(self.host, interactive=self.interactive, cpu=self.cpu)
+        else:
+            logger.warning("Host not provided. sbatch-related configuration ignored.")
 
         for export in self.exports:
             info = export.sync(host=self.host, dry=self.dry)
@@ -62,11 +72,13 @@ class CLIConfig:
                     console.log(
                         Align.center(
                             Panel(
-                                Syntax(info["sbatch"], "bash", line_numbers=True),
+                                Syntax(info["sbatch"], "bash", line_numbers=True, word_wrap=True),
                                 title=f"({export.job.job_name}) sbatch.sh",
                             )
                         )
                     )
+                else:
+                    logger.info("Set SCOMPOSE_LOGLEVEL=DEBUG to view the materialized sbatch file.")
 
 
 def main():

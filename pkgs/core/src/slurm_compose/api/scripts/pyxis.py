@@ -22,7 +22,10 @@ class PyxisScript(SrunScript):
         if not self.container_image:
             raise ValueError("container_image cannot be empty.")
 
+        super().__post_init__()
+
+    def pre_argv(self):
+        super().pre_argv()
+
         if isinstance(self.container_mounts, str):
             self.container_mounts = self.container_mounts.split(",")
-
-        super().__post_init__()

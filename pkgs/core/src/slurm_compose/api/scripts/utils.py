@@ -1,4 +1,7 @@
 from pathlib import Path
+from typing import Any
+
+from slurm_compose.config import logger
 
 from .base import Script
 
@@ -56,3 +59,31 @@ def fields_to_argv(obj: Script, ignore_keys: str | None = None, equals_separated
         ],
         [],
     )
+
+
+def maybe_update_fields(obj: Any, force: bool = False, **kwargs):
+    """Updates attributes that are non-null, unless force is True.
+
+    gpus_per_node are handled separately to allow for cases when
+    it is deliberately set to 0.
+    """
+
+    for k, v in kwargs.items():
+        if not hasattr(obj, k):
+            continue
+
+        old_v = getattr(obj, k)
+        should_update = old_v is None and v is not None and v != old_v
+        if force:
+            should_update = True
+
+        ## Override force behavior for this attribute.
+        if k == "gpus_per_node":
+            if v == -1:
+                should_update = old_v != 0
+            elif old_v == 0:
+                should_update = False
+
+        if should_update:
+            logger.warning(f"Overriding job param {k} with value {v} (previously {old_v})")
+            setattr(obj, k, v)

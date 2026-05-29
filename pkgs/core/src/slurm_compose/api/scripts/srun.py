@@ -4,7 +4,7 @@ from pathlib import Path
 from slurm_compose.config import SRUN_ERROR, SRUN_OUTPUT
 
 from .base import Script
-from .utils import fields_to_argv, resolve_log_template
+from .utils import fields_to_argv, maybe_update_fields, resolve_log_template
 
 
 @dataclass
@@ -44,6 +44,22 @@ class SrunScript(Script):
         if not self.job_name:
             raise ValueError("job_name cannot be empty.")
 
+        super().__post_init__()
+
+        self.pre_argv()
+
+    def maybe_update(self, force: bool = False, **kwargs):
+        """Updates attributes that are non-null.
+
+        When force is True, then all non-null kwargs are set.
+        """
+        maybe_update_fields(self, force=force, **kwargs)
+        self.pre_argv()
+
+    def pre_argv(self):
+        self.output = resolve_log_template(self.output, SRUN_OUTPUT)
+        self.error = resolve_log_template(self.error, SRUN_ERROR)
+
         if not self.kill_on_bad_exit:
             self.kill_on_bad_exit = None
 
@@ -53,12 +69,12 @@ class SrunScript(Script):
         if not self.overlap:
             self.overlap = None
 
-        super().__post_init__()
+        if isinstance(self.gpus_per_node, int) and self.gpus_per_node < 0:
+            self.gpus_per_node = None
 
     @property
     def argv(self) -> list[str]:
-        self.output = resolve_log_template(self.output, SRUN_OUTPUT)
-        self.error = resolve_log_template(self.error, SRUN_ERROR)
+        self.pre_argv()
 
         srun_argv = fields_to_argv(self)
 

@@ -35,7 +35,9 @@ class SlurmSSHRemote:
 
     home_dir: str | Path | None = field(default=None)
 
-    sbatch_bin: str | Path | None = field(default=None)
+    interactive: bool = field(default=False)
+
+    cpu: bool = field(default=False)
 
     def __post_init__(self):
         config = SlurmSSHRemote.load_config(self.host, config_file=self.config_file)
@@ -45,7 +47,7 @@ class SlurmSSHRemote:
         self.user = self.user or config.get("user")
         self.identityfile = self.identityfile or config.get("identityfile")
         self.home_dir = self.home_dir or config.get("home_dir")
-        self.sbatch_bin = self.sbatch_bin or config.get("sbatch_bin")
+        self.sbatch_config = config.get("sbatch")
 
         self.export_dir = Path(self.home_dir) / "exports"
 
@@ -55,6 +57,14 @@ class SlurmSSHRemote:
             username=self.user,
             key_filename=self.identityfile,
         )
+
+    @property
+    def partition(self) -> dict:
+        config_name = ("cpu" if self.cpu else "gpu") + ("_interactive" if self.interactive else "")
+        if config_name not in self.sbatch_config.get("partitions", {}):
+            raise ValueError(f"Partition configuration {config_name} not found for host {self.host}.")
+
+        return self.sbatch_config["partitions"][config_name]
 
     @staticmethod
     def load_config(host, config_file: str | Path = None) -> dict:
@@ -67,6 +77,12 @@ class SlurmSSHRemote:
 
             if host in config:
                 host_config = config[host]
+
+                if host_config.get("type", "ssh") == "alias":
+                    if host_config["remote"] in config:
+                        host_config = config[host_config["remote"]]
+                    else:
+                        logger.warning(f"Missing config entry for resolved alias host {host_config['remote']}.")
             else:
                 logger.warning(f"Missing config entry for {host}.")
 
@@ -80,7 +96,8 @@ class SlurmSSHRemote:
             host_config["home_dir"] = f"/home/{host_config['user']}/.slurm-compose"
             logger.warning(f"Setting default host home directory {host_config['home_dir']}")
 
-        host_config["sbatch_bin"] = host_config.get("sbatch_bin", "sbatch")
+        host_config["sbatch"] = host_config.get("sbatch", {})
+        host_config["sbatch"]["bin"] = host_config["sbatch"].get("bin", "sbatch")
 
         return host_config
 
@@ -183,7 +200,7 @@ class SlurmSSHRemote:
         _, stdout, _ = self.exec(
             " ".join(
                 [
-                    str(self.sbatch_bin),
+                    str(self.sbatch_config["bin"]),
                     "--parsable",
                     str(sbatch_file),
                 ]
@@ -204,7 +221,7 @@ class SlurmExporter:
     export_dir: str | Path | None = field(default=None)
 
     def __post_init__(self):
-        self.name = f"{self.name}.{self.job.job_name}" if self.name else self.job.job_name
+        self.name = f"{self.name}-{self.job.job_name}" if self.name else self.job.job_name
 
         self.external_package_dirs = [Path(p).resolve() for p in self.external_package_dirs] + [
             Path(__file__).parents[1]
@@ -216,17 +233,17 @@ class SlurmExporter:
             self.export_dir = EXPORTS_HOME
             logger.warning(f"Setting default exports home to {EXPORTS_HOME}.")
 
-        self.export_dir = self.export_dir / f"{self.name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        self.export_dir = self.export_dir / f"{self.name}.{datetime.now().strftime('%Y%m%d%H%M%S')}"
         if self.export_dir.exists():
             raise RuntimeError(f"Export directory {self.export_dir} exists.")
 
         self.sbatch_file = self.export_dir / "sbatch.sh"
         self.package_dir = self.export_dir / "pkgs"
 
-        self.job.job_name = self.export_dir.name
-
     @classmethod
-    def from_yaml(cls, file: str | Path, **kwargs) -> Iterator[Self]:
+    def from_yaml(cls, file: str | Path, job_kwargs: dict | None = None, **kwargs) -> Iterator[Self]:
+        job_kwargs = {k: v for k, v in (job_kwargs or {}).items() if v is not None}
+
         with open(Path(file)) as f:
             yaml = YAML().load(f)
 
@@ -236,23 +253,59 @@ class SlurmExporter:
             external_package_dirs = yaml.pop("external_package_dirs", []) + kwargs.pop("external_package_dirs", [])
 
             for job_name, job_args in yaml.pop("jobs", {}).items():
+                ## Always respect job_name from file config.
+                job_args.pop("job_name", None)
+                job_kwargs.pop("job_name", None)
+
                 yield cls(
-                    job=SlurmJob.from_dict(job_name=job_args.pop("job_name", job_name), **job_args),
+                    job=SlurmJob.from_dict(
+                        job_name=job_name,
+                        **{**job_args, **job_kwargs},
+                    ),
                     external_package_dirs=external_package_dirs,
                     **kwargs,
                 )
         else:
             raise NotImplementedError(f"Unsupported yaml config version {version}")
 
-    def bundle(self, mount_dir: str | Path | None = None, dry: bool = False) -> str:
-        ## Set sbatch output.
-        mount_dir = mount_dir or self.export_dir
-        self.job.output = mount_dir / "logs"
+    def bundle(self, host: SlurmSSHRemote | None = None, dry: bool = False) -> str:
+        ####### WARNING: Bundling introduces side-effects to the self.job object. #######
+
+        ## Set job sbatch params and apply overrides from host config when available.
+        force_updates = {"job_name": self.export_dir.name}
+        maybe_updates = {}
+
+        mount_dir = self.export_dir
+
+        if host:
+            mount_dir = host.export_dir / self.export_dir.name
+
+            partition = host.partition
+
+            force_updates.update(partition.pop("overrides", {}))
+
+            maybe_updates["account"] = host.sbatch_config.get("account")
+            maybe_updates.update(partition)
+
+        force_updates["output"] = mount_dir / "logs"
+
+        self.job.maybe_update(**maybe_updates)
+        self.job.maybe_update(**force_updates, force=True)
+
+        ## Remove items no longer necessary for steps.
+        force_updates.pop("job_name", None)
+        maybe_updates.pop("account", None)
+        maybe_updates.pop("partition", None)
+        maybe_updates.pop("qos", None)
+        maybe_updates.pop("time", None)
 
         for step_idx, step in enumerate(self.job.steps):
-            mount_spec = f"{mount_dir}:{MOUNT_PATH}"
+            if isinstance(step, SrunScript):
+                step.maybe_update(**maybe_updates)
+                step.maybe_update(**force_updates, force=True)
 
             ## Set bundle mount when available.
+            mount_spec = f"{mount_dir}:{MOUNT_PATH}"
             if isinstance(step, PyxisScript) and mount_spec not in step.container_mounts:
                 self.job.env["SCOMPOSE_PKGS"] = f"{MOUNT_PATH}/pkgs"
                 step.container_mounts += [mount_spec]
@@ -260,12 +313,7 @@ class SlurmExporter:
                     f"Mount {step.container_mounts[-1]} added to {self.job.job_name} at step {step.job_name} (index {step_idx})"
                 )
 
-            ## Set output to logs path.
-            if isinstance(step, SrunScript):
-                step.output = Path(mount_dir) / "logs"
-                logger.debug(
-                    f"Output {step.output} set to {self.job.job_name} at step {step.job_name} (index {step_idx})"
-                )
+        ###### WARNING: No side-effects on self.job object beyond this point. #######
 
         ## Create local directory for export.
         if not dry:
@@ -304,7 +352,7 @@ class SlurmExporter:
     def sync(self, host: SlurmSSHRemote | None = None, dry: bool = False) -> dict:
         info = {}
 
-        info["sbatch"] = self.bundle(mount_dir=host.export_dir / self.export_dir.name if host else None, dry=dry)
+        info["sbatch"] = self.bundle(host=host, dry=dry)
         info["local_dir"] = self.export_dir
 
         if host:
