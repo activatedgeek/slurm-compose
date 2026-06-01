@@ -21,6 +21,14 @@ class RayScript(PyxisScript):
 class RayIdleScript(RayScript):
     """Only for coordination and not actual workloads."""
 
+    nodes: int = field(default=1)
+
+    ntasks_per_node: int = field(default=1)
+
+    gpus_per_node: int = field(default=0)
+
+    overlap: bool = field(default=True)
+
     def __post_init__(self):
         self.command = [
             "--num-cpus",

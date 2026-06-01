@@ -12,4 +12,4 @@ class SGLangScript(PyxisScript):
     def __post_init__(self):
         super().__post_init__()
 
-        self.command = [str(Path(MOUNT_PATH) / "pkgs/slurm_compose/api/scripts/sglang/srun.sh")] + self.command
+        self.command = [Path(MOUNT_PATH) / "pkgs/slurm_compose/api/scripts/sglang/srun.sh"] + self.command

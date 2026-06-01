@@ -7,7 +7,7 @@ from typing import ClassVar, Literal, Self, get_args, get_origin, get_type_hints
 from jinja2 import Environment, FileSystemLoader
 from pytimeparse import parse as timeparse
 
-from slurm_compose.config import SBATCH_ERROR, SBATCH_OUTPUT
+from slurm_compose.config import SBATCH_ERROR, SBATCH_OUTPUT, logger
 
 from .scripts import Script
 from .scripts.utils import fields_to_argv, maybe_update_fields, resolve_log_template
@@ -84,7 +84,11 @@ class SlurmJob:
                 raise ValueError(f"Missing __class__ in step {step_idx}")
 
             step_cls = resolve_name(step.pop("__class__"))
-            step = step_cls(**step)
+            try:
+                step = step_cls(**step)
+            except Exception:
+                logger.error(f"Failed to build step {step_idx}")
+                raise
 
             steps.append(step)
 

@@ -12,6 +12,6 @@ class vLLMScript(PyxisScript):
     def __post_init__(self):
         super().__post_init__()
 
-        self.command = [str(Path(MOUNT_PATH) / "pkgs/slurm_compose/api/scripts/vllm/srun.sh")] + self.command
+        self.command = [Path(MOUNT_PATH) / "pkgs/slurm_compose/api/scripts/vllm/srun.sh"] + self.command
 
         self.env["VLLM_RUNTIME_DIR"] = rf"$(mktemp -u {MOUNT_PATH}/logs/vllm-XXXXXXX)"

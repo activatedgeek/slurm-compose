@@ -299,7 +299,10 @@ class SlurmExporter:
 
         self.job.maybe_update(**maybe_updates)
         self.job.maybe_update(**force_updates, force=True)
+
         self.job.env["SCOMPOSE_JOB"] = "1"
+        self.job.env["SCOMPOSE_PKGS"] = f"{mount_dir}/pkgs"
+        self.job.env["SCOMPOSE_LOGS"] = f"{mount_dir}/logs"
 
         ## Remove items no longer necessary for steps.
         force_updates.pop("job_name", None)
@@ -317,6 +320,7 @@ class SlurmExporter:
             mount_spec = f"{mount_dir}:{MOUNT_PATH}"
             if isinstance(step, PyxisScript) and mount_spec not in step.container_mounts:
                 self.job.env["SCOMPOSE_PKGS"] = f"{MOUNT_PATH}/pkgs"
+                self.job.env["SCOMPOSE_LOGS"] = f"{MOUNT_PATH}/logs"
                 step.container_mounts += [mount_spec]
                 logger.debug(
                     f"Mount {step.container_mounts[-1]} added to {self.job.job_name} at step {step.job_name} (index {step_idx})"
