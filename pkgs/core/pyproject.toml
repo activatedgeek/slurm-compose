@@ -34,4 +34,5 @@ packages.find.where = ["src"]
 
 [tool.setuptools.package-data]
 "slurm_compose.api.scripts" = ["**/*.sh"]
+"slurm_compose.api.templates" = ["**/*.j2"]
 "slurm_compose.api" = ["**/*.scignore"]
