@@ -20,7 +20,9 @@ class CLIConfig:
     data_file: Annotated[str | Path | None, tyro.conf.arg(aliases=["-d"])] = field(default=None)
     """Path to slurm compose template data file for variable substitution."""
 
-    data_args: Annotated[list[int | str], tyro.conf.arg(aliases=["-e"])] = field(default_factory=list)
+    data_args: Annotated[list[int | str], tyro.conf.UseAppendAction, tyro.conf.arg(aliases=["-e"])] = field(
+        default_factory=list
+    )
     """Inline template variables as VAR=value. Repeatable; overrides values in data_file."""
 
     host: Annotated[str | None, tyro.conf.arg(aliases=["-H"])] = field(default=None)
@@ -45,10 +47,13 @@ class CLIConfig:
     """Use pre-registered interactive partitions from host configuration."""
 
     nodes: Annotated[int | None, tyro.conf.arg(aliases=["-N"])] = field(default=None)
-    """Number of nodes."""
+    """sbatch nodes -N/--nodes."""
 
     gpus_per_node: Annotated[int | None, tyro.conf.arg(aliases=["-g"])] = field(default=None)
-    """Number of nodes."""
+    """sbatch gpus per nodes --gpus-per-node."""
+
+    array: Annotated[str | None, tyro.conf.arg(aliases=["-a"])] = field(default=None)
+    """sbatch array -a/--array."""
 
     export_dir: str | Path | None = field(default=None)
     """Export directory."""
@@ -70,6 +75,7 @@ class CLIConfig:
                     "time": self.time,
                     "nodes": self.nodes,
                     "gpus_per_node": self.gpus_per_node,
+                    "array": self.array,
                 },
             )
         )
