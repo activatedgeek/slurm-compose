@@ -89,7 +89,7 @@ class SlurmSSHRemote:
 
         if host_config.pop("use_ssh_agent", True):
             logger.info(f"Loading {host} config from SSH agent.")
-            host_config = {**SlurmSSHRemote.get_ssh_config(host), **host_config}
+            host_config = SlurmSSHRemote.get_ssh_config(host) | host_config
 
         assert "user" in host_config, f"Missing user in {host} config."
 
@@ -243,12 +243,17 @@ class SlurmExporter:
 
     @classmethod
     def from_yaml(
-        cls, file: str | Path, data_file: str | Path | None = None, job_kwargs: dict | None = None, **kwargs
+        cls,
+        file: str | Path,
+        data_file: str | Path | None = None,
+        data_kwargs: dict | None = None,
+        job_kwargs: dict | None = None,
+        **kwargs,
     ) -> Iterator[Self]:
         job_kwargs = {k: v for k, v in (job_kwargs or {}).items() if v is not None}
 
         ## Apply template variable substitution before parsing YAML.
-        yaml_data = YAML().load(Path(data_file).read_text()) if data_file else {}
+        yaml_data = (YAML().load(Path(data_file).read_text()) if data_file else {}) | (data_kwargs or {})
         yaml_str = Template(Path(file).read_text()).safe_substitute(
             **{k: v for k, v in yaml_data.items() if v is not None}
         )
@@ -268,7 +273,7 @@ class SlurmExporter:
                 yield cls(
                     job=SlurmJob.from_dict(
                         job_name=job_name,
-                        **{**job_args, **job_kwargs},
+                        **(job_args | job_kwargs),
                     ),
                     external_package_dirs=external_package_dirs,
                     **kwargs,

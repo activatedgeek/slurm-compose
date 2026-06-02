@@ -20,6 +20,9 @@ class CLIConfig:
     data_file: Annotated[str | Path | None, tyro.conf.arg(aliases=["-d"])] = field(default=None)
     """Path to slurm compose template data file for variable substitution."""
 
+    data_args: Annotated[list[int | str], tyro.conf.arg(aliases=["-e"])] = field(default_factory=list)
+    """Inline template variables as VAR=value. Repeatable; overrides values in data_file."""
+
     host: Annotated[str | None, tyro.conf.arg(aliases=["-H"])] = field(default=None)
     """Name of remote host. Must be resolvable from ssh agent."""
 
@@ -52,6 +55,7 @@ class CLIConfig:
             SlurmExporter.from_yaml(
                 self.file,
                 data_file=self.data_file,
+                data_kwargs=dict(arg.split("=", 1) for arg in self.data_args),
                 export_dir=self.export_dir,
                 job_kwargs={
                     "account": self.account,
