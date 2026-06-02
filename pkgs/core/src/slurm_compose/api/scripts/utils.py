@@ -85,5 +85,5 @@ def maybe_update_fields(obj: Any, force: bool = False, **kwargs):
                 should_update = False
 
         if should_update:
-            logger.debug(f"Overriding job param {k} with value {v} (previously {old_v})")
+            logger.debug(f"Overriding param {k} with value {v} (previously {old_v})")
             setattr(obj, k, v)

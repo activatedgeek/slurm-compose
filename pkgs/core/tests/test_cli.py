@@ -8,7 +8,7 @@ from slurm_compose.cli import CLIConfig
 
 @pytest.fixture
 def cli_config() -> CLIConfig:
-    return CLIConfig(file="pkgs/core/tests/test_config.yml")
+    return CLIConfig(file="pkgs/core/tests/test_config.yml", nodes=2)
 
 
 @pytest.fixture
@@ -23,6 +23,7 @@ def test_cli(cli_config: CLIConfig):
         cli_config.run()
 
         for export in cli_config.exports:
+            assert export.job.nodes == 2
             assert export.job.time == "01:00:00"
             assert export.sbatch_file.exists()
             assert os.access(export.sbatch_file, os.X_OK)

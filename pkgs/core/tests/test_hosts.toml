@@ -7,3 +7,17 @@ use_ssh_agent = false
 hostname = "example.com"
 user = "test"
 identityfile = "/etc/config/ssh.id"
+
+## A complete example.
+[example]
+type = "ssh"
+use_ssh_agent = true
+home_dir = "/home/user/store/.slurm-compose"
+[example.sbatch]
+bin = "/home/user/.local/bin/sbatch"
+account = "example_account"
+gpus_per_node = 4
+partitions.gpu = {partition = "batch", time = "4h", overrides = {gpus_per_node = 4}}
+partitions.gpu_interactive = {partition = "batch", qos = "interactive", time = "4h", overrides = {gpus_per_node = 4}}
+partitions.cpu = {partition = "cpu", time = "4h"}
+partitions.cpu_interactive = {partition = "cpu", qos = "cpu-interactive", time = "2h"}

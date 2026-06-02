@@ -67,6 +67,10 @@ class SlurmSSHRemote:
 
         return self.sbatch_config["partitions"][config_name]
 
+    @property
+    def gpus_per_node(self) -> int | None:
+        return self.sbatch_config.get("gpus_per_node")
+
     @staticmethod
     def load_config(host, config_file: str | Path = None) -> dict:
         host_config_file = Path(config_file or (CONFIG_HOME / "hosts.toml"))
@@ -251,17 +255,15 @@ class SlurmExporter:
         **kwargs,
     ) -> Iterator[Self]:
         job_kwargs = {k: v for k, v in (job_kwargs or {}).items() if v is not None}
+        data_kwargs = {k: v for k, v in (data_kwargs or {}).items() if v is not None}
+        data_file_kwargs = {
+            k: v for k, v in (YAML().load(Path(data_file).read_text()) if data_file else {}).items() if v is not None
+        }
 
         ## Apply template variable substitution before parsing YAML.
-        yaml_data = (YAML().load(Path(data_file).read_text()) if data_file else {}) | (data_kwargs or {})
-        yaml_str = Template(Path(file).read_text()).safe_substitute(
-            **{k: v for k, v in yaml_data.items() if v is not None}
-        )
-
-        yaml = YAML().load(yaml_str)
+        yaml = YAML().load(Template(Path(file).read_text()).safe_substitute(**(data_file_kwargs | data_kwargs)))
 
         version = str(yaml.pop("version", 1))
-
         if version == "1":
             external_package_dirs = yaml.pop("external_package_dirs", []) + kwargs.pop("external_package_dirs", [])
 
@@ -271,10 +273,7 @@ class SlurmExporter:
                 job_kwargs.pop("job_name", None)
 
                 yield cls(
-                    job=SlurmJob.from_dict(
-                        job_name=job_name,
-                        **(job_args | job_kwargs),
-                    ),
+                    job=SlurmJob.from_dict(job_name=job_name, **(job_args | job_kwargs)),
                     external_package_dirs=external_package_dirs,
                     **kwargs,
                 )
@@ -295,10 +294,13 @@ class SlurmExporter:
 
             partition = host.partition
 
-            force_updates.update(partition.pop("overrides", {}))
+            force_updates |= partition.pop("overrides", {})
 
             maybe_updates["account"] = host.sbatch_config.get("account")
-            maybe_updates.update(partition)
+            maybe_updates |= partition
+
+            if not host.cpu:
+                maybe_updates |= {"gpus_per_node": host.gpus_per_node}
 
         force_updates["output"] = mount_dir / "logs"
 
@@ -310,11 +312,8 @@ class SlurmExporter:
         self.job.env["SCOMPOSE_LOGS"] = f"{mount_dir}/logs"
 
         ## Remove items no longer necessary for steps.
-        force_updates.pop("job_name", None)
-        maybe_updates.pop("account", None)
-        maybe_updates.pop("partition", None)
-        maybe_updates.pop("qos", None)
-        maybe_updates.pop("time", None)
+        [force_updates.pop(k, None) for k in ["job_name"]]
+        [maybe_updates.pop(k, None) for k in ["account", "partition", "qos", "time"]]
 
         for step_idx, step in enumerate(self.job.steps):
             if isinstance(step, SrunScript):

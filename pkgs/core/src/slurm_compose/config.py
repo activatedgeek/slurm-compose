@@ -21,7 +21,7 @@ SRUN_OUTPUT = os.getenv("SCOMPOSE_SRUN_OUTPUT", r"%j.%s-${STEP_NAME}.log")
 SRUN_ERROR = os.getenv("SCOMPOSE_SRUN_ERROR", r"%j.%s-${STEP_NAME}.err")
 
 logging.basicConfig(
-    level=os.getenv("SCOMPOSE_LOGLEVEL", "INFO"),
+    level=os.getenv("LOGLEVEL", "INFO"),
     format="%(message)s",
     datefmt="[%X]",
     handlers=[RichHandler(markup=True)],

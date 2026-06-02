@@ -38,11 +38,17 @@ class CLIConfig:
     time: Annotated[str | None, tyro.conf.arg(aliases=["-t"])] = field(default=None)
     """sbatch time -t/--time. supports strings via pytimeparse."""
 
+    cpu: bool = field(default=False)
+    """Use pre-registered cpu partitions from host configuration."""
+
     interactive: bool = field(default=False)
     """Use pre-registered interactive partitions from host configuration."""
 
-    cpu: bool = field(default=False)
-    """Use pre-registered cpu partitions from host configuration."""
+    nodes: Annotated[int | None, tyro.conf.arg(aliases=["-N"])] = field(default=None)
+    """Number of nodes."""
+
+    gpus_per_node: Annotated[int | None, tyro.conf.arg(aliases=["-g"])] = field(default=None)
+    """Number of nodes."""
 
     export_dir: str | Path | None = field(default=None)
     """Export directory."""
@@ -62,6 +68,8 @@ class CLIConfig:
                     "partition": self.partition,
                     "qos": self.qos,
                     "time": self.time,
+                    "nodes": self.nodes,
+                    "gpus_per_node": self.gpus_per_node,
                 },
             )
         )
@@ -86,7 +94,7 @@ class CLIConfig:
                         )
                     )
                 else:
-                    logger.info("Set SCOMPOSE_LOGLEVEL=DEBUG to view the materialized sbatch file.")
+                    logger.info("Set LOGLEVEL=DEBUG to view the materialized sbatch file.")
 
 
 def main():
