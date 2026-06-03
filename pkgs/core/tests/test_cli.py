@@ -8,12 +8,12 @@ from slurm_compose.cli import CLIConfig
 
 @pytest.fixture
 def cli_config() -> CLIConfig:
-    return CLIConfig(file="pkgs/core/tests/test_config.yml", nodes=2)
+    return CLIConfig(file="pkgs/core/tests/configs/test.yml", nodes=2)
 
 
 @pytest.fixture
 def cli_wait_config() -> CLIConfig:
-    return CLIConfig(file="pkgs/core/tests/test_wait.yml")
+    return CLIConfig(file="pkgs/core/tests/configs/wait.yml")
 
 
 def test_cli(cli_config: CLIConfig):

@@ -8,6 +8,7 @@ from jinja2 import Environment, FileSystemLoader
 from pytimeparse import parse as timeparse
 
 from slurm_compose.config import SBATCH_ERROR, SBATCH_OUTPUT, logger
+from slurm_compose.plugins.registry import script_plugins
 
 from .scripts import Script
 from .scripts.utils import fields_to_argv, maybe_update_fields, resolve_log_template
@@ -80,10 +81,17 @@ class SlurmJob:
     def from_dict(cls, **kwargs: dict) -> Self:
         steps = []
         for step_idx, step in enumerate(kwargs.pop("steps", [])):
-            if "__class__" not in step:
-                raise ValueError(f"Missing __class__ in step {step_idx}")
+            if "__class__" in step and "step_type" in step:
+                raise ValueError(f"Cannot specify both __class__ and step_type fields in step {step_idx}")
 
-            step_cls = resolve_name(step.pop("__class__"))
+            if "__class__" not in step and "step_type" not in step:
+                raise ValueError(f"Must specify one of __class__ or step_type fields in step {step_idx}")
+
+            step_cls = (
+                resolve_name(step.pop("__class__"))
+                if "__class__" in step
+                else script_plugins.get(step.pop("step_type"))
+            )
             try:
                 step = step_cls(**step)
             except Exception:

@@ -1,13 +1,13 @@
 jobs:
   ok:
     steps:
-      - __class__: slurm_compose.api.scripts:Script
+      - step_type: command
         command: |
           sleep "${SLEEP_TIME}"
           echo "Finished Step ${STEP_ID}."
         env:
           SLEEP_TIME: 30s
-      - __class__: slurm_compose.api.scripts:Script
+      - step_type: command
         command: |
           sleep "${SLEEP_TIME}"
           echo "Finished Step ${STEP_ID}."
@@ -28,7 +28,7 @@ jobs:
         env:
           SLEEP_TIME: 30s
           TESTENV: testvalue
-      - __class__: slurm_compose.api.scripts:Script
+      - step_type: command
         command: |
           echo "TESTENV: ${TESTENV}"
           sleep "${SLEEP_TIME}"

@@ -1,3 +1,3 @@
-from .pyxis import RayIdleScript, RayScript
+from .pyxis import IdleRayScript, RayScript
 
-__all__ = ["RayScript", "RayIdleScript"]
+__all__ = ["RayScript", "IdleRayScript"]

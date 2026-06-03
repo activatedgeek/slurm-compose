@@ -1,6 +1,6 @@
 _common:
   step_defaults: &step_defaults
-    __class__: slurm_compose.api.scripts:PyxisScript
+    step_type: pyxis
     container_mounts:
       - /var/logs:/logs
       - /var/data:/data

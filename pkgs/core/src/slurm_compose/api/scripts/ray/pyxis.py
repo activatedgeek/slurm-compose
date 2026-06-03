@@ -18,7 +18,7 @@ class RayScript(PyxisScript):
 
 
 @dataclass
-class RayIdleScript(RayScript):
+class IdleRayScript(RayScript):
     """Only for coordination and not actual workloads."""
 
     nodes: int = field(default=1)

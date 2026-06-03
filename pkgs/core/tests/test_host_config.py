@@ -6,7 +6,7 @@ from slurm_compose.api.exporter import SlurmSSHRemote
 
 @pytest.fixture
 def hosts_config_file() -> Path:
-    return Path(__file__).parent / "test_hosts.toml"
+    return Path(__file__).parent / "configs/hosts.toml"
 
 
 def test_empty_host(hosts_config_file: Path):

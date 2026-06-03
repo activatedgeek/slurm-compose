@@ -26,6 +26,9 @@ optional-dependencies.test = ["prek", "pytest"]
 
 scripts.slurm-compose = "slurm_compose.cli:main"
 
+[project.entry-points."slurm_compose.scripts"]
+core = "slurm_compose.plugins.utils:register_core_script_plugins"
+
 [tool.setuptools]
 include-package-data = true
 package-dir = { "" = "src" }
