@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from slurm_compose.api.scripts import PyxisScript, SrunScript
 from slurm_compose.config import MOUNT_PATH, logger
 
@@ -5,7 +7,7 @@ from ..base import SlurmComposeExportPlugin
 
 
 class DefaultExportPlugin(SlurmComposeExportPlugin):
-    name = "default"
+    name: ClassVar[str] = "default"
 
     def pre_bundle(self, exporter, host, dry: bool = False):
         ## Set job sbatch params and apply overrides from host config when available.

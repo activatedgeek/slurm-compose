@@ -19,5 +19,6 @@ class SlurmComposeScriptPlugin(SlurmComposePlugin):
 
 @dataclass(frozen=True)
 class SlurmComposeExportPlugin(SlurmComposePlugin):
-    def pre_bundle(self, exporter, host: Optional = None, dry: bool = False):
-        raise NotImplementedError
+    def pre_bundle(self, exporter, host: Optional = None, dry: bool = False): ...
+
+    def post_sync(self, exporter, host: Optional = None, dry: bool = False): ...

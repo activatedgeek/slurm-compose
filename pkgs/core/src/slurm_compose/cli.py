@@ -1,12 +1,8 @@
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated
 
 import tyro
-from rich.align import Align
-from rich.panel import Panel
-from rich.syntax import Syntax
 
 from slurm_compose.api.exporter import SlurmExporter, SlurmSSHRemote
 from slurm_compose.config import logger
@@ -86,21 +82,7 @@ class CLIConfig:
             logger.warning("Host not provided. sbatch-related configuration ignored.")
 
         for export in self.exports:
-            info = export.sync(host=self.host, dry=self.dry)
-            if self.dry:
-                from slurm_compose.config import console
-
-                if logger.getEffectiveLevel() == logging.DEBUG:
-                    console.log(
-                        Align.center(
-                            Panel(
-                                Syntax(info["sbatch"], "bash", line_numbers=True, word_wrap=True),
-                                title=f"({export.job.job_name}) sbatch.sh",
-                            )
-                        )
-                    )
-                else:
-                    logger.info("Set LOGLEVEL=DEBUG to view the materialized sbatch file.")
+            export.sync(host=self.host, dry=self.dry)
 
 
 def main():

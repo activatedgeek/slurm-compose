@@ -1,3 +1,4 @@
+import logging
 import os
 import shlex
 import shutil
@@ -235,7 +236,10 @@ class SlurmExporter:
         ]
 
         ## Always use default exporter plugin.
-        self.plugins = dict.fromkeys(["default"] + (self.plugins or []))
+        self.plugins = [
+            export_plugins.get(name)
+            for name in dict.fromkeys(["default"] + [p for p in (self.plugins or []) if p != "default"])
+        ]
 
         if self.export_dir:
             self.export_dir = Path(self.export_dir)
@@ -271,7 +275,7 @@ class SlurmExporter:
         version = str(yaml.pop("version", 1))
         if version == "1":
             external_package_dirs = yaml.pop("external_package_dirs", []) + kwargs.pop("external_package_dirs", [])
-            export_plugins = set(yaml.pop("export_plugins", []) + kwargs.pop("export_plugins", []))
+            export_plugins = yaml.pop("export_plugins", []) + kwargs.pop("export_plugins", [])
 
             for job_name, job_args in yaml.pop("jobs", {}).items():
                 ## Always respect job_name from YAML config.
@@ -287,11 +291,11 @@ class SlurmExporter:
         else:
             raise NotImplementedError(f"Unsupported yaml config version {version}")
 
-    def bundle(self, host: SlurmSSHRemote | None = None, dry: bool = False) -> str:
+    def bundle(self, host: SlurmSSHRemote | None = None, dry: bool = False):
         ####### WARNING: Bundling introduces side-effects to the self.job object. #######
 
-        for name in self.plugins:
-            export_plugins.get(name).pre_bundle(self, host=host, dry=dry)
+        for plugin in self.plugins:
+            plugin.pre_bundle(self, host=host, dry=dry)
 
         ###### WARNING: No side-effects on self.job object beyond this point. #######
 
@@ -327,16 +331,30 @@ class SlurmExporter:
                 )
                 logger.debug(f"Package synced to {package_export_dir}")
 
-        return materialized_sbatch
+        if dry:
+            from rich.align import Align
+            from rich.panel import Panel
+            from rich.syntax import Syntax
 
-    def sync(self, host: SlurmSSHRemote | None = None, dry: bool = False) -> dict:
-        info = {}
+            from slurm_compose.config import console
 
-        info["sbatch"] = self.bundle(host=host, dry=dry)
-        info["local_dir"] = self.export_dir
+            if logger.getEffectiveLevel() == logging.DEBUG:
+                console.log(
+                    Align.center(
+                        Panel(
+                            Syntax(materialized_sbatch, "bash", line_numbers=True, word_wrap=True),
+                            title=f"({self.job.job_name}) sbatch.sh",
+                        )
+                    )
+                )
+            else:
+                logger.info("Set LOGLEVEL=DEBUG to view the materialized sbatch file.")
+
+    def sync(self, host: SlurmSSHRemote | None = None, dry: bool = False):
+        self.bundle(host=host, dry=dry)
 
         if host:
-            info["remote_dir"] = host.sync(self.export_dir, dry=dry)
+            host.sync(self.export_dir, dry=dry)
 
             if dry:
                 logger.warning(f"Skipping sbatch submission to {host.hostname}.")
@@ -351,4 +369,5 @@ class SlurmExporter:
         else:
             logger.info(f"Job bundle created at {self.export_dir}")
 
-        return info
+        for plugin in self.plugins:
+            plugin.post_sync(self, host=host, dry=dry)

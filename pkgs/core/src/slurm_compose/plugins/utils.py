@@ -43,7 +43,7 @@ def register_core_script_plugins() -> Iterator[SlurmComposeScriptPlugin]:
     yield from build_script_plugins(*find_subclasses_in_package(scripts_package, Script))
 
 
-def register_core_export_plugins() -> Iterator[SlurmComposeScriptPlugin]:
+def register_core_export_plugins() -> Iterator[SlurmComposeExportPlugin]:
     import slurm_compose.plugins.export as export_package
 
     yield from find_subclasses_in_module(export_package, SlurmComposeExportPlugin)

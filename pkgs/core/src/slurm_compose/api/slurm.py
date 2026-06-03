@@ -77,6 +77,29 @@ class SlurmJob:
 
         return {k: _get_type(v) for k, v in get_type_hints(cls).items()}
 
+    def to_dict(self) -> dict:
+        def _parse_val(v):
+            if v is None or isinstance(v, (int, str, float, bool)):
+                return v
+            elif isinstance(v, Path):
+                return str(v)
+            elif isinstance(v, list):
+                return list(filter(lambda x: x is not None, [_parse_val(vi) for vi in v])) or None
+            elif isinstance(v, dict):
+                v_out = {k: _parse_val(vi) for k, vi in v.items()}
+                return {k: vi for k, vi in v_out.items() if vi is not None} or None
+            elif isinstance(v, Script):
+                v_out = {k: _parse_val(getattr(v, k)) for k in v.fields().keys()} | {
+                    "__class__": type(v).__module__ + ":" + type(v).__qualname__
+                }
+                return {k: vi for k, vi in v_out.items() if vi is not None} or None
+
+            raise ValueError(f"Unsupported type {type(v).__module__ + ':' + type(v).__qualname__}")
+
+        dict_config = {k: _parse_val(getattr(self, k)) for k in self.fields().keys()}
+
+        return {k: v for k, v in dict_config.items() if v is not None}
+
     @classmethod
     def from_dict(cls, **kwargs: dict) -> Self:
         steps = []
