@@ -1,3 +1,3 @@
-from .base import SlurmComposePlugin, SlurmComposeScriptPlugin
+from .base import SlurmComposeExportPlugin, SlurmComposePlugin, SlurmComposeScriptPlugin
 
-__all__ = ["SlurmComposePlugin", "SlurmComposeScriptPlugin"]
+__all__ = ["SlurmComposePlugin", "SlurmComposeScriptPlugin", "SlurmComposeExportPlugin"]

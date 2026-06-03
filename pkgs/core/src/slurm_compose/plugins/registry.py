@@ -13,7 +13,7 @@ class PluginRegistry:
         for ep in entry_points(group=f"slurm_compose.{self.group}"):
             for plugin in ep.load()():
                 if plugin.name in plugins:
-                    raise ValueError(f"Duplicate plugin name '{plugin.name}' in group slurm_compose.{self.group}")
+                    raise ValueError(f"Duplicate plugin name '{plugin.name}' in group 'slurm_compose.{self.group}'")
                 plugins[plugin.name] = plugin
         return plugins
 
@@ -25,7 +25,8 @@ class PluginRegistry:
         if name not in self._plugins:
             raise ValueError(f"Missing plugin name '{name}' in group 'slurm_compose.{self.group}'")
 
-        return self._plugins[name]
+        return self._plugins[name]()
 
 
 script_plugins = PluginRegistry("scripts")
+export_plugins = PluginRegistry("export")

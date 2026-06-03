@@ -6,7 +6,7 @@ from typing import Iterator, Type
 
 from slurm_compose.api.scripts import Script
 
-from .base import SlurmComposeScriptPlugin
+from .base import SlurmComposeExportPlugin, SlurmComposeScriptPlugin
 
 
 def get_all_subclasses(cls: Type) -> Iterator[Type]:
@@ -33,13 +33,17 @@ def find_subclasses_in_module(module: ModuleType, cls: Type):
 
 def build_script_plugins(*cls: Script) -> Iterator[SlurmComposeScriptPlugin]:
     for c in cls:
-        yield SlurmComposeScriptPlugin(
-            name=c.__name__.removesuffix("Script").lower() or "command",
-            cls=c,
-        )
+        name = c.__name__.removesuffix("Script").lower() or "command"
+        yield type(f"{name}Plugin", (SlurmComposeScriptPlugin,), {"name": name, "cls": c})
 
 
 def register_core_script_plugins() -> Iterator[SlurmComposeScriptPlugin]:
     import slurm_compose.api.scripts as scripts_package
 
     yield from build_script_plugins(*find_subclasses_in_package(scripts_package, Script))
+
+
+def register_core_export_plugins() -> Iterator[SlurmComposeScriptPlugin]:
+    import slurm_compose.plugins.export as export_package
+
+    yield from find_subclasses_in_module(export_package, SlurmComposeExportPlugin)

@@ -13,10 +13,10 @@ from typing import Iterator, Self
 from fsspec.implementations.sftp import SFTPFileSystem
 from ruamel.yaml import YAML
 
-from slurm_compose.config import CONFIG_HOME, EXPORTS_HOME, MOUNT_PATH, PROJECT_NAME, logger
+from slurm_compose.config import CONFIG_HOME, EXPORTS_HOME, PROJECT_NAME, logger
+from slurm_compose.plugins.registry import export_plugins
 
 from .packager import gitignore_filter
-from .scripts import PyxisScript, SrunScript
 from .slurm import SlurmJob
 
 
@@ -223,6 +223,8 @@ class SlurmExporter:
 
     external_package_dirs: list[str | Path] = field(default_factory=list)
 
+    plugins: list = field(default_factory=list)
+
     export_dir: str | Path | None = field(default=None)
 
     def __post_init__(self):
@@ -231,6 +233,9 @@ class SlurmExporter:
         self.external_package_dirs = [Path(p).resolve() for p in self.external_package_dirs] + [
             Path(__file__).parents[1]
         ]
+
+        ## Always use default exporter plugin.
+        self.plugins = dict.fromkeys(["default"] + (self.plugins or []))
 
         if self.export_dir:
             self.export_dir = Path(self.export_dir)
@@ -266,6 +271,7 @@ class SlurmExporter:
         version = str(yaml.pop("version", 1))
         if version == "1":
             external_package_dirs = yaml.pop("external_package_dirs", []) + kwargs.pop("external_package_dirs", [])
+            export_plugins = set(yaml.pop("export_plugins", []) + kwargs.pop("export_plugins", []))
 
             for job_name, job_args in yaml.pop("jobs", {}).items():
                 ## Always respect job_name from YAML config.
@@ -275,6 +281,7 @@ class SlurmExporter:
                 yield cls(
                     job=SlurmJob.from_dict(job_name=job_name, **(job_args | job_kwargs)),
                     external_package_dirs=external_package_dirs,
+                    plugins=export_plugins,
                     **kwargs,
                 )
         else:
@@ -283,52 +290,8 @@ class SlurmExporter:
     def bundle(self, host: SlurmSSHRemote | None = None, dry: bool = False) -> str:
         ####### WARNING: Bundling introduces side-effects to the self.job object. #######
 
-        ## Set job sbatch params and apply overrides from host config when available.
-        force_updates = {"job_name": self.export_dir.name}
-        maybe_updates = {}
-
-        mount_dir = self.export_dir
-
-        if host:
-            mount_dir = host.export_dir / self.export_dir.name
-
-            partition = host.partition
-
-            force_updates |= partition.pop("overrides", {})
-
-            maybe_updates["account"] = host.sbatch_config.get("account")
-            maybe_updates |= partition
-
-            if not host.cpu:
-                maybe_updates |= {"gpus_per_node": host.gpus_per_node}
-
-        force_updates["output"] = mount_dir / "logs"
-
-        self.job.maybe_update(**maybe_updates)
-        self.job.maybe_update(**force_updates, force=True)
-
-        self.job.env["SCOMPOSE_JOB"] = "1"
-        self.job.env["SCOMPOSE_PKGS"] = f"{mount_dir}/pkgs"
-        self.job.env["SCOMPOSE_LOGS"] = f"{mount_dir}/logs"
-
-        ## Remove items no longer necessary for steps.
-        [force_updates.pop(k, None) for k in ["job_name"]]
-        [maybe_updates.pop(k, None) for k in ["account", "partition", "qos", "time"]]
-
-        for step_idx, step in enumerate(self.job.steps):
-            if isinstance(step, SrunScript):
-                step.maybe_update(**maybe_updates)
-                step.maybe_update(**force_updates, force=True)
-
-            ## Set bundle mount when available.
-            mount_spec = f"{mount_dir}:{MOUNT_PATH}"
-            if isinstance(step, PyxisScript) and mount_spec not in step.container_mounts:
-                self.job.env["SCOMPOSE_PKGS"] = f"{MOUNT_PATH}/pkgs"
-                self.job.env["SCOMPOSE_LOGS"] = f"{MOUNT_PATH}/logs"
-                step.container_mounts += [mount_spec]
-                logger.debug(
-                    f"Mount {step.container_mounts[-1]} added to {self.job.job_name} at step {step.job_name} (index {step_idx})"
-                )
+        for name in self.plugins:
+            export_plugins.get(name).pre_bundle(self, host=host, dry=dry)
 
         ###### WARNING: No side-effects on self.job object beyond this point. #######
 
