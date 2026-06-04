@@ -11,15 +11,17 @@ from slurm_compose.config import logger
 @dataclass
 class CLIConfig:
     file: Annotated[str | Path, tyro.conf.arg(aliases=["-f"])]
-    """Path to slurm compose template file."""
+    """Path to template file."""
 
-    data_file: Annotated[str | Path | None, tyro.conf.arg(aliases=["-d"])] = field(default=None)
-    """Path to slurm compose template data file for variable substitution."""
+    data_files: Annotated[list[str | Path], tyro.conf.UseAppendAction, tyro.conf.arg(aliases=["-d"])] = field(
+        default_factory=list
+    )
+    """Path to template data file for variable substitution. Repeatable. Last one wins."""
 
     data_args: Annotated[list[int | str], tyro.conf.UseAppendAction, tyro.conf.arg(aliases=["-e"])] = field(
         default_factory=list
     )
-    """Inline template variables as VAR=value. Repeatable; overrides values in data_file."""
+    """Inline template variables as VAR=value. Repeatable. Last one wins. Overrides -d/--data-files."""
 
     host: Annotated[str | None, tyro.conf.arg(aliases=["-H"])] = field(default=None)
     """Name of remote host. Must be resolvable from ssh agent."""
@@ -61,7 +63,7 @@ class CLIConfig:
         self.exports: list[SlurmExporter] = list(
             SlurmExporter.from_yaml(
                 self.file,
-                data_file=self.data_file,
+                data_files=self.data_files,
                 data_kwargs=dict(arg.split("=", 1) for arg in self.data_args),
                 export_dir=self.export_dir,
                 job_kwargs={

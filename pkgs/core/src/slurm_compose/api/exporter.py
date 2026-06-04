@@ -258,16 +258,24 @@ class SlurmExporter:
     def from_yaml(
         cls,
         file: str | Path,
-        data_file: str | Path | None = None,
+        data_files: str | Path | list[str | Path] | None = None,
         data_kwargs: dict | None = None,
         job_kwargs: dict | None = None,
         **kwargs,
     ) -> Iterator[Self]:
-        job_kwargs = {k: v for k, v in (job_kwargs or {}).items() if v is not None}
-        data_file_kwargs = {
-            k: v for k, v in (YAML().load(Path(data_file).read_text()) if data_file else {}).items() if v is not None
-        }
+        if not isinstance(data_files, list):
+            data_files = [data_files]
+        data_files = data_files or []
         data_kwargs = {k: v for k, v in (data_kwargs or {}).items() if v is not None}
+        job_kwargs = {k: v for k, v in (job_kwargs or {}).items() if v is not None}
+
+        data_file_kwargs = {}
+        for data_file in data_files:
+            data_file_kwargs |= {
+                k: v
+                for k, v in (YAML().load(Path(data_file).read_text()) if data_file else {}).items()
+                if v is not None
+            }
 
         ## Apply template variable substitution before parsing YAML.
         yaml = YAML().load(Template(Path(file).read_text()).safe_substitute(**(data_file_kwargs | data_kwargs)))
