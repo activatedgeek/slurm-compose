@@ -13,6 +13,9 @@ class CLIConfig:
     file: Annotated[str | Path, tyro.conf.arg(aliases=["-f"])]
     """Path to template file."""
 
+    job_names: Annotated[list[str], tyro.conf.Positional] = field(default_factory=list)
+    """Optional space-separated list of job names to generate from template file."""
+
     data_files: Annotated[list[str | Path], tyro.conf.UseAppendAction, tyro.conf.arg(aliases=["-d"])] = field(
         default_factory=list
     )
@@ -63,6 +66,7 @@ class CLIConfig:
         self.exports: list[SlurmExporter] = list(
             SlurmExporter.from_yaml(
                 self.file,
+                job_names=self.job_names,
                 data_files=self.data_files,
                 data_kwargs=dict(arg.split("=", 1) for arg in self.data_args),
                 export_dir=self.export_dir,

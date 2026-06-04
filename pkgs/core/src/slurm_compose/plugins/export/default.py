@@ -10,6 +10,10 @@ class DefaultExportPlugin(SlurmComposeExportPlugin):
     name: ClassVar[str] = "default"
 
     def pre_bundle(self, exporter, host, dry: bool = False):
+        if exporter.project_name:
+            exporter.job.env["SCOMPOSE_PROJECT_NAME"] = exporter.project_name
+        exporter.job.env["SCOMPOSE_JOB_NAME"] = exporter.job.job_name
+
         ## Set job sbatch params and apply overrides from host config when available.
         force_updates = {"job_name": exporter.export_dir.name}
         maybe_updates = {}
@@ -34,7 +38,6 @@ class DefaultExportPlugin(SlurmComposeExportPlugin):
         exporter.job.maybe_update(**maybe_updates)
         exporter.job.maybe_update(**force_updates, force=True)
 
-        exporter.job.env["SCOMPOSE_JOB"] = "1"
         exporter.job.env["SCOMPOSE_PKGS"] = f"{mount_dir}/pkgs"
         exporter.job.env["SCOMPOSE_LOGS"] = f"{mount_dir}/logs"
 

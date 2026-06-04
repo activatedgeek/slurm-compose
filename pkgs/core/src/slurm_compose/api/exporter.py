@@ -220,7 +220,7 @@ class SlurmSSHRemote:
 class SlurmExporter:
     job: SlurmJob
 
-    name: str | None = field(default=PROJECT_NAME)
+    project_name: str | None = field(default=PROJECT_NAME)
 
     external_package_dirs: list[str | Path] = field(default_factory=list)
 
@@ -229,8 +229,6 @@ class SlurmExporter:
     export_dir: str | Path | None = field(default=None)
 
     def __post_init__(self):
-        self.name = f"{self.name}-{self.job.job_name}" if self.name else self.job.job_name
-
         self.external_package_dirs = [Path(p).resolve() for p in self.external_package_dirs] + [
             Path(__file__).parents[1]
         ]
@@ -247,7 +245,8 @@ class SlurmExporter:
             self.export_dir = EXPORTS_HOME
             logger.warning(f"Setting default exports home to {EXPORTS_HOME}.")
 
-        self.export_dir = self.export_dir / f"{self.name}.{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        folder_prefix = f"{self.project_name}-{self.job.job_name}" if self.project_name else self.job.job_name
+        self.export_dir = self.export_dir / f"{folder_prefix}.{datetime.now().strftime('%Y%m%d%H%M%S')}"
         if self.export_dir.exists():
             raise RuntimeError(f"Export directory {self.export_dir} exists.")
 
@@ -258,6 +257,7 @@ class SlurmExporter:
     def from_yaml(
         cls,
         file: str | Path,
+        job_names: list[str] | None = None,
         data_files: str | Path | list[str | Path] | None = None,
         data_kwargs: dict | None = None,
         job_kwargs: dict | None = None,
@@ -286,6 +286,9 @@ class SlurmExporter:
             export_plugins = yaml.pop("export_plugins", []) + kwargs.pop("export_plugins", [])
 
             for job_name, job_args in yaml.pop("jobs", {}).items():
+                if job_names and job_name not in job_names:
+                    continue
+
                 ## Always respect job_name from YAML config.
                 job_args.pop("job_name", None)
                 job_kwargs.pop("job_name", None)
