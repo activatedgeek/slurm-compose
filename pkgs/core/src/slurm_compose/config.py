@@ -20,14 +20,9 @@ SBATCH_ERROR = os.getenv("SCOMPOSE_SBATCH_ERROR", r"%j-%x.err")
 SRUN_OUTPUT = os.getenv("SCOMPOSE_SRUN_OUTPUT", r"%j.%s-${STEP_NAME}.log")
 SRUN_ERROR = os.getenv("SCOMPOSE_SRUN_ERROR", r"%j.%s-${STEP_NAME}.err")
 
-logging.basicConfig(
-    level=os.getenv("LOGLEVEL", "INFO"),
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(markup=True)],
-)
-
-logger = logging.getLogger()
+logger = logging.getLogger("slurm-compose")
+logger.addHandler(RichHandler(markup=True))
+logger.setLevel(os.getenv("SCOMPOSE_LOGLEVEL", "INFO"))
 try:
     console = logger.handlers[0].console
 except AttributeError:

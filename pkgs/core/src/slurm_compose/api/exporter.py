@@ -359,7 +359,7 @@ class SlurmExporter:
                     )
                 )
             else:
-                logger.info("Set LOGLEVEL=DEBUG to view the materialized sbatch file.")
+                logger.info("Set SCOMPOSE_LOGLEVEL=DEBUG to view the materialized sbatch file.")
 
     def sync(self, host: SlurmSSHRemote | None = None, dry: bool = False):
         self.bundle(host=host, dry=dry)
