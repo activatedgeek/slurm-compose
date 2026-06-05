@@ -16,6 +16,9 @@ def get_all_subclasses(cls: Type) -> Iterator[Type]:
 
 
 def find_subclasses_in_package(package: ModuleType, cls: Type):
+    """
+    WARNING: Introduces global side-effects. Not recommended.
+    """
     ## Import only top-level __init__ modules (ensure *only* scripts are exposed).
     for info in pkgutil.iter_modules(package.__path__, prefix=f"{package.__name__}."):
         importlib.import_module(info.name)
@@ -39,8 +42,15 @@ def build_script_plugins(*cls: Script) -> Iterator[SlurmComposeScriptPlugin]:
 
 def register_core_script_plugins() -> Iterator[SlurmComposeScriptPlugin]:
     import slurm_compose.api.scripts as scripts_package
+    import slurm_compose.api.scripts.ray as ray_scripts_package
+    import slurm_compose.api.scripts.sglang as sglang_scripts_package
+    import slurm_compose.api.scripts.vllm as vllm_scripts_package
 
-    yield from build_script_plugins(*find_subclasses_in_package(scripts_package, Script))
+    yield from build_script_plugins(Script)
+    yield from build_script_plugins(*find_subclasses_in_module(scripts_package, Script))
+    yield from build_script_plugins(*find_subclasses_in_module(ray_scripts_package, Script))
+    yield from build_script_plugins(*find_subclasses_in_module(sglang_scripts_package, Script))
+    yield from build_script_plugins(*find_subclasses_in_module(vllm_scripts_package, Script))
 
 
 def register_core_export_plugins() -> Iterator[SlurmComposeExportPlugin]:
