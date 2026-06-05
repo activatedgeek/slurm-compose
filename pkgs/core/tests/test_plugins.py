@@ -23,7 +23,7 @@ from slurm_compose.plugins.registry import export_plugins, script_plugins
 def test_core_script_plugin_registry(name, cls):
     plugin = script_plugins.get(name)
 
-    assert isinstance(plugin, SlurmComposeScriptPlugin)
+    assert issubclass(plugin, SlurmComposeScriptPlugin)
     assert plugin.name == name
     assert plugin.cls is cls
 
@@ -37,5 +37,5 @@ def test_core_script_plugin_registry(name, cls):
 def test_core_export_plugin_registry(name, cls):
     plugin = export_plugins.get(name)
 
-    assert isinstance(plugin, SlurmComposeExportPlugin)
+    assert issubclass(plugin, SlurmComposeExportPlugin)
     assert plugin.name == name

@@ -25,7 +25,7 @@ class PluginRegistry:
         if name not in self._plugins:
             raise ValueError(f"Missing plugin name '{name}' in group 'slurm_compose.{self.group}'")
 
-        return self._plugins[name]()
+        return self._plugins[name]
 
 
 script_plugins = PluginRegistry("scripts")

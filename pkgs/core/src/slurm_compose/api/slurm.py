@@ -113,7 +113,7 @@ class SlurmJob:
             step_cls = (
                 resolve_name(step.pop("__class__"))
                 if "__class__" in step
-                else script_plugins.get(step.pop("step_type"))
+                else script_plugins.get(step.pop("step_type"))()
             )
             try:
                 step = step_cls(**step)

@@ -235,7 +235,7 @@ class SlurmExporter:
 
         ## Always use default exporter plugin.
         self.plugins = [
-            export_plugins.get(name)
+            export_plugins.get(name)(exporter=self)
             for name in dict.fromkeys(["default"] + [p for p in (self.plugins or []) if p != "default"])
         ]
 
@@ -306,7 +306,7 @@ class SlurmExporter:
         ####### WARNING: Bundling introduces side-effects to the self.job object. #######
 
         for plugin in self.plugins:
-            plugin.pre_bundle(self, host=host, dry=dry)
+            plugin.pre_bundle(host=host, dry=dry)
 
         ###### WARNING: No side-effects on self.job object beyond this point. #######
 
@@ -381,4 +381,4 @@ class SlurmExporter:
             logger.info(f"Job bundle created at {self.export_dir}")
 
         for plugin in self.plugins:
-            plugin.post_sync(self, host=host, dry=dry)
+            plugin.post_sync(host=host, dry=dry)

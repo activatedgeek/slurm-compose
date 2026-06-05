@@ -19,6 +19,12 @@ class SlurmComposeScriptPlugin(SlurmComposePlugin):
 
 @dataclass(frozen=True)
 class SlurmComposeExportPlugin(SlurmComposePlugin):
-    def pre_bundle(self, exporter, host: Optional = None, dry: bool = False): ...
+    exporter: Any
 
-    def post_sync(self, exporter, host: Optional = None, dry: bool = False): ...
+    def __post_init__(self):
+        if not self.exporter:
+            raise ValueError("exporter cannot be undefined.")
+
+    def pre_bundle(self, host: Optional = None, dry: bool = False): ...
+
+    def post_sync(self, host: Optional = None, dry: bool = False): ...
