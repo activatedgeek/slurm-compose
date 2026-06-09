@@ -60,6 +60,8 @@ class SlurmJob:
 
     steps: list[Script] = field(default_factory=list, metadata={"argv": False})
 
+    step_delay: int | str = field(default="30s", metadata={"argv": False})
+
     env: dict[str, str] = field(default_factory=dict, metadata={"argv": False})
 
     def __post_init__(self):
@@ -171,4 +173,5 @@ class SlurmJob:
             sbatch_argv=fields_to_argv(self, equals_separated=True) + (self.extra_argv or []),
             env=self.env,
             steps=self.steps,
+            step_delay=self.step_delay,
         )

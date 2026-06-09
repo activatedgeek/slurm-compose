@@ -16,6 +16,9 @@ class Script:
 
     env: dict[str, str] = field(default_factory=dict, metadata={"argv": False})
 
+    local_env: dict[str, str] = field(default_factory=dict, metadata={"argv": False})
+    """Environment variables scoped within the step's detached shell command."""
+
     def __post_init__(self):
         if not self.command:
             raise ValueError("command cannot be empty.")

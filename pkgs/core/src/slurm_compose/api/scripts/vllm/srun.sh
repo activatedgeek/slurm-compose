@@ -20,7 +20,7 @@ if [[ $SLURM_NNODES -gt 1 ]]; then
     fi
 
     RAY_RUNTIME_DIR="${VLLM_RUNTIME_DIR}/ray" RAY_SKIP_UV_WRAP=1 RAY_SKIP_KV_INIT=1 \
-    "$(dirname "${BASH_SOURCE[0]}")/../ray/slurm.sh" &
+    "$(dirname "${BASH_SOURCE[0]}")/../ray/srun.sh" &
 
     if ! RAY_RUNTIME_DIR="${VLLM_RUNTIME_DIR}/ray" RAY_SKIP_UV_WRAP=1 RAY_SKIP_KV_INIT=1 ray_health_check; then
         exit 1

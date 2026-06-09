@@ -25,9 +25,17 @@ STEP_ID={{ loop.index0 }}
 {% if step.job_name is defined %}
 STEP_NAME={{ step.job_name }}
 {% endif %}
+{% for k, v in step.local_env.items() %}
+export {{ k }}="{{ v }}"
+{% endfor %}
+
 {{ step.args | trim }}
 } & step_pids+=($!)
 # unset {{ step.env.keys() | join(" ") }}
+
+{% if not loop.last and step_delay is defined %}
+sleep {{ step_delay }}
+{% endif %}
 {% endfor %}
 
 ## Waits for any step to finish, and then terminates all returning the exit code.

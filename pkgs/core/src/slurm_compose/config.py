@@ -21,6 +21,7 @@ SRUN_OUTPUT = os.getenv("SCOMPOSE_SRUN_OUTPUT", r"%j.%s-${STEP_NAME}.log")
 SRUN_ERROR = os.getenv("SCOMPOSE_SRUN_ERROR", r"%j.%s-${STEP_NAME}.err")
 
 logger = logging.getLogger("slurm-compose")
+logger.propagate = False
 logger.addHandler(RichHandler(markup=True))
 logger.setLevel(os.getenv("SCOMPOSE_LOGLEVEL", "INFO"))
 try:

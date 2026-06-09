@@ -13,7 +13,7 @@ def cli_config() -> CLIConfig:
 
 @pytest.fixture
 def cli_wait_config() -> CLIConfig:
-    return CLIConfig(file="pkgs/core/tests/configs/wait.yml")
+    return CLIConfig(file="pkgs/core/tests/configs/wait.yml", delay=0)
 
 
 def test_cli(cli_config: CLIConfig):

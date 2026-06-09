@@ -56,6 +56,9 @@ class CLIConfig:
     array: Annotated[str | None, tyro.conf.arg(aliases=["-a"])] = field(default=None)
     """sbatch array -a/--array."""
 
+    delay: int | str | None = field(default=None)
+    """Delay between launching steps, as accepted by sleep command."""
+
     export_dir: str | Path | None = field(default=None)
     """Export directory."""
 
@@ -78,6 +81,7 @@ class CLIConfig:
                     "nodes": self.nodes,
                     "gpus_per_node": self.gpus_per_node,
                     "array": self.array,
+                    "step_delay": self.delay,
                 },
             )
         )
