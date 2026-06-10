@@ -378,7 +378,8 @@ class SlurmExporter:
 
                 logger.info(f"sbatch job {slurm_job_id} submitted")
         else:
-            logger.info(f"Job bundle created at {self.export_dir}")
+            if not dry:
+                logger.info(f"Job bundle created at {self.export_dir}")
 
         for plugin in self.plugins:
             plugin.post_sync(host=host, dry=dry)

@@ -48,29 +48,40 @@ function get_free_port {
 }
 
 
-function wait_on_file {
-    local f retries=12
+function retry_until {
+    ## max_retries (60) x delay (10s) = max_time (10 mins).
+    local retries=12 max_retries=60 delay=10
+    local cmd=()
 
     while [[ $# -gt 0 ]]; do
         case "${1}" in
-            -f) f="${2}"; shift 2 ;;
-            -r) retries="${2}"; shift 2 ;;
-            *) shift ;;
+            -r|--retries) retries="${2}"; shift 2 ;;
+            -m|--max-retries) max_retries="${2}"; shift 2 ;;
+            -d|--delay) delay="${2}"; shift 2 ;;
+            --) shift; cmd=("${@}"); break ;;
+            *) cmd+=("${1}"); shift ;;
         esac
     done
 
-    ## Wait for a maximum of 4 hours.
-    if [[ $retries -eq -1 ]]; then
-        retries=1440
+    if [[ ${#cmd[@]} -eq 0 ]]; then
+        echo "[ERROR] retry_until requires a command." >&2
+        return 1
     fi
 
-    until test -f "${f}"; do
+    if [[ "${retries}" -eq -1 ]]; then
+        retries="${max_retries}"
+    fi
+
+    until "${cmd[@]}"; do
+        status=$?
         retries=$(( retries - 1 ))
-        if [[ $retries -lt 0 ]]; then
-            echo "[ERROR] Timout waiting for file ${f}." >&2
-            return 1
+
+        if [[ "${retries}" -lt 0 ]]; then
+            echo "[ERROR] Command failed or timed out: ${cmd[*]}" >&2
+            return "${status}"
         fi
-        sleep 10
+
+        sleep "${delay}"
     done
 }
 
@@ -80,25 +91,25 @@ function ray_health_check {
         install_uv >&2
     fi
 
-    local address client_address version py_version retries=12
+    local address client_address version py_version
 
     if [[ -n "${RAY_RUNTIME_DIR}" ]]; then
-        if ! wait_on_file -f "${RAY_RUNTIME_DIR}/HEAD" > /dev/null 2>&1; then
+        if ! retry_until -r -1 -- test -f "${RAY_RUNTIME_DIR}/HEAD" > /dev/null 2>&1; then
             echo "[ERROR] Ray head file ${RAY_RUNTIME_DIR}/HEAD not found." >&2
             return 1
         fi
 
-        if ! wait_on_file -f "${RAY_RUNTIME_DIR}/CLIENT" > /dev/null 2>&1; then
+        if ! retry_until -r -1 -- test -f "${RAY_RUNTIME_DIR}/CLIENT" > /dev/null 2>&1; then
             echo "[ERROR] Ray client file ${RAY_RUNTIME_DIR}/CLIENT not found." >&2
             return 1
         fi
 
-        if ! wait_on_file -f "${RAY_RUNTIME_DIR}/VERSION" > /dev/null 2>&1; then
+        if ! retry_until -r -1 -- test -f "${RAY_RUNTIME_DIR}/VERSION" > /dev/null 2>&1; then
             echo "[ERROR] Ray version file ${RAY_RUNTIME_DIR}/VERSION not found." >&2
             return 1
         fi
 
-        if ! wait_on_file -f "${RAY_RUNTIME_DIR}/PY_VERSION" > /dev/null 2>&1; then
+        if ! retry_until -r -1 -- test -f "${RAY_RUNTIME_DIR}/PY_VERSION" > /dev/null 2>&1; then
             echo "[ERROR] Python version file ${RAY_RUNTIME_DIR}/PY_VERSION not found." >&2
             return 1
         fi
@@ -111,16 +122,10 @@ function ray_health_check {
 
     while [[ $# -gt 0 ]]; do
         case "${1}" in
-            -r) retries="${2}"; shift 2 ;;
             --address) address="${2}"; shift 2 ;;
             *) shift ;;
         esac
     done
-
-    ## Wait for a maximum of 4 hours.
-    if [[ $retries -eq -1 ]]; then
-        retries=1440
-    fi
 
     if [[ (-z "${address}") || (-z "${client_address}") || (-z "${version}") || (-z "${py_version}") ]]; then
         echo "[ERROR] Unable to construct ray address/version. Set RAY_RUNTIME_DIR." >&2
@@ -132,15 +137,10 @@ function ray_health_check {
         ray_cmd=(uvx -q --no-progress -p "${py_version}" -w "ray[cgraph,default]==${version}" "${ray_cmd[@]}")
     fi
 
-    echo "[INFO] Waiting for ray head ${address} to be ready..." >&2
-    until "${ray_cmd[@]}" > /dev/null 2>&1; do
-        retries=$(( retries - 1 ))
-        if [[ $retries -lt 0 ]]; then
-            echo "[ERROR] Ray health check failed or timed out." >&2
-            return 1
-        fi
-        sleep 10
-    done
+    if ! retry_until -r -1 -- "${ray_cmd[@]}" > /dev/null 2>&1; then
+        echo "[ERROR] Ray health check failed or timed out." >&2
+        return 1
+    fi
 
     echo "[INFO] Ray head ${address} ready!" >&2
 
@@ -158,21 +158,21 @@ function ray_kv {
         install_uv >&2
     fi
 
-    local address version py_version retries=12
+    local address version py_version
     local actor_namespace="${RAY_ACTOR_NAMESPACE:-slurm-${SLURM_JOB_ID}}" actor_name="${RAY_ACTOR_NAME:-global_kv}"
 
     if [[ -n "${RAY_RUNTIME_DIR}" ]]; then
-        if ! wait_on_file -f "${RAY_RUNTIME_DIR}/CLIENT" > /dev/null 2>&1; then
+        if ! retry_until -r -1 -- test -f "${RAY_RUNTIME_DIR}/CLIENT" > /dev/null 2>&1; then
             echo "[ERROR] Ray client file ${RAY_RUNTIME_DIR}/CLIENT not found." >&2
             return 1
         fi
 
-        if ! wait_on_file -f "${RAY_RUNTIME_DIR}/VERSION" > /dev/null 2>&1; then
+        if ! retry_until -r -1 -- test -f "${RAY_RUNTIME_DIR}/VERSION" > /dev/null 2>&1; then
             echo "[ERROR] Ray version file ${RAY_RUNTIME_DIR}/VERSION not found." >&2
             return 1
         fi
 
-        if ! wait_on_file -f "${RAY_RUNTIME_DIR}/PY_VERSION" > /dev/null 2>&1; then
+        if ! retry_until -r -1 -- test -f "${RAY_RUNTIME_DIR}/PY_VERSION" > /dev/null 2>&1; then
             echo "[ERROR] Python version file ${RAY_RUNTIME_DIR}/PY_VERSION not found." >&2
             return 1
         fi
@@ -187,34 +187,14 @@ function ray_kv {
         return 1
     fi
 
-    kv_cmd_args=()
-    while [[ $# -gt 0 ]]; do
-        case "${1}" in
-            -r) retries="${2}"; shift 2 ;;
-            *) kv_cmd_args+=("${1}"); shift ;;
-        esac
-    done
-
-    ## Wait for a maximum of 4 hours.
-    if [[ $retries -eq -1 ]]; then
-        retries=1440
-    fi
-
     kv_cmd=(
         python "$(dirname "${BASH_SOURCE[0]}")/../ray/kv.py"
         --address "${address}" --namespace "${actor_namespace}" --name "${actor_name}"
-        "${kv_cmd_args[@]}"
+        "${@}"
     )
     if [[ -z "${RAY_SKIP_UV_WRAP}" ]]; then
         kv_cmd=(uv run -q --no-progress --no-project -p "${py_version}" -w "ray[cgraph,default]==${version}" "${kv_cmd[@]}")
     fi
 
-    until "${kv_cmd[@]}"; do
-        retries=$(( retries - 1 ))
-        if [[ $retries -lt 0 ]]; then
-            echo "[ERROR] ray_kv command failed or timed out." >&2
-            return 1
-        fi
-        sleep 10
-    done
+    "${kv_cmd[@]}"
 }
