@@ -53,6 +53,8 @@ class SlurmJob:
 
     open_mode: Literal["append", "truncate"] = field(default="append")
 
+    requeue: bool | str | None = field(default=True)
+
     array: str | None = field(default=None)
 
     extra_argv: list[str] = field(default_factory=list, metadata={"argv": False})
@@ -63,6 +65,8 @@ class SlurmJob:
     step_delay: int | str = field(default="30s", metadata={"argv": False})
 
     env: dict[str, str] = field(default_factory=dict, metadata={"argv": False})
+
+    max_restarts: int = field(default=0, metadata={"argv": False})
 
     def __post_init__(self):
         if not self.job_name:
@@ -154,6 +158,9 @@ class SlurmJob:
         if isinstance(self.gpus_per_node, int) and self.gpus_per_node < 0:
             self.gpus_per_node = None
 
+        if not self.requeue:
+            self.max_restarts = 0
+
     def materialize(self, template: str = "slurm.sh.j2", template_dir: str | list[str | Path] | None = None) -> str:
         self.pre_materialize()
 
@@ -174,4 +181,5 @@ class SlurmJob:
             env=self.env,
             steps=self.steps,
             step_delay=self.step_delay,
+            max_restarts=self.max_restarts,
         )

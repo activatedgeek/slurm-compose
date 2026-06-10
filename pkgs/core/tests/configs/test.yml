@@ -8,6 +8,7 @@ _common:
 
 jobs:
   eval:
+    max_restarts: 10
     account: test_account
     partition: test_partition
     qos: test_qos

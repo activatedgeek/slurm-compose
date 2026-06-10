@@ -59,6 +59,9 @@ class CLIConfig:
     delay: int | str | None = field(default=None)
     """Delay between launching steps, as accepted by sleep command."""
 
+    max_restarts: Annotated[int | None, tyro.conf.arg(aliases=["-r"])] = field(default=None)
+    """Max number of restarts on failure."""
+
     export_dir: str | Path | None = field(default=None)
     """Export directory."""
 
@@ -82,14 +85,13 @@ class CLIConfig:
                     "gpus_per_node": self.gpus_per_node,
                     "array": self.array,
                     "step_delay": self.delay,
+                    "max_restarts": self.max_restarts,
                 },
             )
         )
 
         if self.host:
             self.host = SlurmSSHRemote(self.host, interactive=self.interactive, cpu=self.cpu)
-        else:
-            logger.warning("Host not provided. sbatch-related configuration ignored.")
 
         for export in self.exports:
             export.sync(host=self.host, dry=self.dry)

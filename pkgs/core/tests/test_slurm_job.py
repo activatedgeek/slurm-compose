@@ -1,3 +1,4 @@
+import subprocess
 from datetime import timedelta
 from pathlib import Path
 
@@ -45,6 +46,7 @@ def slurm_job() -> SlurmJob:
         cpus_per_task=1,
         gpus_per_node=8,
         output=Path.home() / "slurm/test/%j.log",
+        max_restarts=3,
     )
 
 
@@ -64,6 +66,14 @@ def test_slurm_job_materialize(slurm_job: SlurmJob):
     assert f"#SBATCH --output={slurm_job.output}\n" in materialized_str
     assert "#SBATCH --error" not in materialized_str
     assert f"#SBATCH --open-mode={slurm_job.open_mode}\n" in materialized_str
+    assert "#SBATCH --requeue\n" in materialized_str
+
+
+def test_slurm_job_materialize_bash_syntax(slurm_job: SlurmJob):
+    materialized_str = slurm_job.materialize()
+
+    result = subprocess.run(["bash", "-n"], input=materialized_str, text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr
 
 
 def test_slurm_job_materialize_nullables(slurm_job: SlurmJob):
@@ -73,6 +83,7 @@ def test_slurm_job_materialize_nullables(slurm_job: SlurmJob):
     slurm_job.gpus_per_node = None
     slurm_job.output = None
     slurm_job.error = None
+    slurm_job.requeue = False
 
     materialized_str = slurm_job.materialize()
 
@@ -82,6 +93,7 @@ def test_slurm_job_materialize_nullables(slurm_job: SlurmJob):
     assert "#SBATCH --gpus-per-node=" not in materialized_str
     assert "#SBATCH --output=" not in materialized_str
     assert "#SBATCH --error=" not in materialized_str
+    assert "#SBATCH --requeue" not in materialized_str
 
 
 def test_slurm_job_extras_materialize(slurm_job: SlurmJob):
