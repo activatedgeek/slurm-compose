@@ -6,10 +6,13 @@ import sys
 import ray
 
 
-@ray.remote
+@ray.remote(num_cpus=0)
 class KVStore:
     def __init__(self):
         self.store = {}
+
+    def ready(self):
+        return True
 
     def set(self, key, value):
         self.store[key] = value
@@ -30,6 +33,7 @@ def main():
     parser.add_argument("--address", type=str, default="localhost:10001", help="Ray client address.")
     parser.add_argument("--namespace", type=str, default="slurm", help="Ray namespace.")
     parser.add_argument("--name", type=str, default="global_kv", help="Ray actor name.")
+    parser.add_argument("-q", "--quiet", action="store_true", default=False, help="Disable informational logging.")
 
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
@@ -50,14 +54,19 @@ def main():
         ray.init(address=f"ray://{args.address}", namespace=args.namespace, logging_level=logging.ERROR)
 
         if args.command == "init":
-            KVStore.options(name=args.name, lifetime="detached", get_if_exists=True).remote()
+            kv = KVStore.options(name=args.name, lifetime="detached", get_if_exists=True).remote()
+            ray.get(kv.ready.remote())
 
-            print(f"[INFO] KV actor {args.namespace}/{args.name} is live.", file=sys.stderr)
+            if not args.quiet:
+                print(f"[INFO] KV actor {args.namespace}/{args.name} is live.")
         elif args.command == "get":
             kv = ray.get_actor(args.name)
 
             value = ray.get(kv.get.remote(args.key))
             if value is None:
+                if not args.quiet:
+                    print(f"[ERROR] Key {args.key} not found in {args.namespace}/{args.name}.", file=sys.stderr)
+
                 sys.exit(1)
 
             print(value)
@@ -69,9 +78,8 @@ def main():
             kv = ray.get_actor(args.name)
             ray.get(kv.set.remote(args.key, args.value))
 
-            print(
-                f"[INFO] Set key {args.key} with value {args.value} in {args.namespace}/{args.name}.", file=sys.stderr
-            )
+            if not args.quiet:
+                print(f"[INFO] Set key {args.key} with value {args.value} in {args.namespace}/{args.name}.")
         else:
             raise NotImplementedError
     except (ray.exceptions.RayError, ValueError, ConnectionError) as e:

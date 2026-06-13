@@ -25,6 +25,8 @@ class IdleRayScript(RayScript):
 
     ntasks_per_node: int = field(default=1)
 
+    cpus_per_task: int = field(default=1)
+
     gpus_per_node: int = field(default=0)
 
     overlap: bool = field(default=True)
