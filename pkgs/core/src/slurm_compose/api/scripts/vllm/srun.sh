@@ -78,7 +78,7 @@ function vllm-deploy {
                 return 1
             fi
 
-            if ! ray-kv set --key "${SLURM_JOB_NAME}" --value "http://$(hostname --ip-address):${VLLM_PORT}/v1"; then
+            if ! retry_until -r -1 -- ray-kv set --key "${SLURM_JOB_NAME}" --value "http://$(hostname --ip-address):${VLLM_PORT}/v1"; then
                 echo "[ERROR] Unable to set ray KV for key '${SLURM_JOB_NAME}'" >&2
                 return 1
             fi
@@ -87,7 +87,7 @@ function vllm-deploy {
                 sleep 10
             done
 
-            if ! ray-kv set --key "${SLURM_JOB_NAME}/ready" --value 1; then
+            if ! retry_until -r -1 -- ray-kv set --key "${SLURM_JOB_NAME}/ready" --value 1; then
                 echo "[ERROR] Unable to set vLLM model ready in ray KV store." >&2
                 return 1
             fi

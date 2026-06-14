@@ -27,8 +27,8 @@ if [[ $SLURM_PROCID -eq 0 ]]; then
     SGLANG_PORT=${SGLANG_PORT:-$(get_free_port)}
     SGLANG_NCCL_PORT=${SGLANG_NCCL_PORT:-$(get_free_port)}
 
-    ray-kv set --key "${SLURM_JOB_NAME}" --value "http://$(hostname --ip-address):${SGLANG_PORT}/v1"
-    ray-kv set --key "${SLURM_JOB_NAME}/nccl" --value "$(hostname --ip-address):${SGLANG_NCCL_PORT}"
+    retry_until -r -1 -- ray-kv set --key "${SLURM_JOB_NAME}" --value "http://$(hostname --ip-address):${SGLANG_PORT}/v1"
+    retry_until -r -1 -- ray-kv set --key "${SLURM_JOB_NAME}/nccl" --value "$(hostname --ip-address):${SGLANG_NCCL_PORT}"
 fi
 
 echo "[INFO] Waiting for sglang address..."
@@ -53,7 +53,7 @@ if [[ $SLURM_PROCID -eq 0 ]]; then
     until [[ $(curl -o /dev/null -s -w "%{http_code}\n" "http://$(hostname --ip-address):${SGLANG_PORT}/v1/models") -eq 200 ]]; do
         sleep 10
     done
-    ray-kv set --key "${SLURM_JOB_NAME}/ready" --value 1
+    retry_until -r -1 -- ray-kv set --key "${SLURM_JOB_NAME}/ready" --value 1
 fi
 
 wait

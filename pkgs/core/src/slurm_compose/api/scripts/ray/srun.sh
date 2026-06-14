@@ -3,7 +3,7 @@
 # shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/../include/common.sh"
 
-RAY_VERSION=${RAY_VERSION:-2.54.1}
+RAY_VERSION=${RAY_VERSION:-2.55.1}
 PY_VERSION=${PY_VERSION:-3.12.13}
 
 
