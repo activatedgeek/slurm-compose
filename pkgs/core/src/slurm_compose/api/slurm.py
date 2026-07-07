@@ -37,6 +37,8 @@ class SlurmJob:
 
     time: str | timedelta | None = field(default=None)
 
+    begin: str | None = field(default=None)
+
     nodes: int = field(default=1)
 
     ntasks_per_node: int = field(default=8)

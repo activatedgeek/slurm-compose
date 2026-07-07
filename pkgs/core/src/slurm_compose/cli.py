@@ -41,6 +41,9 @@ class CLIConfig:
     time: Annotated[str | None, tyro.conf.arg(aliases=["-t"])] = field(default=None)
     """sbatch time -t/--time. supports strings via pytimeparse."""
 
+    begin: Annotated[str | None, tyro.conf.arg(aliases=["-b"])] = field(default=None)
+    """sbatch begin -b/--begin."""
+
     cpu: bool = field(default=False)
     """Use pre-registered cpu partitions from host configuration."""
 
@@ -81,6 +84,7 @@ class CLIConfig:
                     "partition": self.partition,
                     "qos": self.qos,
                     "time": self.time,
+                    "begin": self.begin,
                     "nodes": self.nodes,
                     "gpus_per_node": self.gpus_per_node,
                     "array": self.array,
