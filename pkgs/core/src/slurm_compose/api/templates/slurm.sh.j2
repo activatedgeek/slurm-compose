@@ -7,27 +7,50 @@
 {% for arg in sbatch_argv %}
 #SBATCH {{ arg }}
 {% endfor %}
+#SBATCH --signal=B:USR1@10
 
 function maybe_sbatch_requeue {
-    max_restarts={{ max_restarts }}
+    if [[ -n "${SLURM_JOB_ID}" ]]; then
+        trap - USR1
+    fi
+
+    local exit_code=${1} max_restarts={{ max_restarts }}
+
+    if [[ -n "${SLURM_EVENT}" ]]; then
+        local -A event_log=(
+            [EXIT]="[ERROR] Non-zero exit code (${exit_code}) detected."
+            [TIMEOUT]="[WARNING] Job approaching time limit."
+        )
+
+        echo "${event_log[$SLURM_EVENT]}" >&2
+    fi
+
     if [[ (-n "${SLURM_JOB_ID}") && ($max_restarts -gt 0) ]]; then
-        restarts=${SLURM_RESTART_COUNT:-0}
+        local restarts=${SLURM_RESTART_COUNT:-0}
 
         if (( restarts < max_restarts )); then
-            requeue_job_id="${SLURM_JOB_ID}"
+            local requeue_job_id="${SLURM_JOB_ID}"
             if [[ (-n "${SLURM_ARRAY_JOB_ID:-}") && (-n "${SLURM_ARRAY_TASK_ID:-}") ]]; then
                 requeue_job_id="${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
             fi
 
-            echo "[INFO] Requeueing sbatch job ${requeue_job_id} (attempt $(( restarts + 1 ))/${max_restarts})"
+            echo "[INFO] Requeueing job ${requeue_job_id} (attempt $(( restarts + 1 ))/${max_restarts})" >&2
             if ! scontrol requeue "${requeue_job_id}"; then
-                echo "[ERROR] Failed to requeue sbatch job ${requeue_job_id}."
+                echo "[ERROR] Failed to requeue job ${requeue_job_id}." >&2
+                exit $exit_code
             fi
         else
-            echo "[ERROR] Max restarts (${max_restarts}) reached."
+            echo "[ERROR] Max restarts (${max_restarts}) reached." >&2
+            exit $exit_code
         fi
     fi
+
+    return $exit_code
 }
+
+if [[ -n "${SLURM_JOB_ID}" ]]; then
+    trap 'SLURM_EVENT=TIMEOUT maybe_sbatch_requeue 124' USR1
+fi
 
 {% for k, v in env.items() %}
 export {{ k }}="{{ v }}"
@@ -68,7 +91,5 @@ wait "${step_pids[@]}" 2>/dev/null || true
 
 ## Attempt requeue for non-zero exit codes.
 if [[ $exit_code -ne 0 ]]; then
-    maybe_sbatch_requeue
+    SLURM_EVENT=EXIT maybe_sbatch_requeue $exit_code
 fi
-
-exit $exit_code
