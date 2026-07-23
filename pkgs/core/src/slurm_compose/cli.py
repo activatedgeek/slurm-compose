@@ -71,6 +71,9 @@ class CLIConfig:
     dry: bool = field(default=False)
     """A dry run with no on-disk modifications when host is unset."""
 
+    sync: bool = field(default=True)
+    """Skip sync to host when set to False."""
+
     def run(self):
         self.exports: list[SlurmExporter] = list(
             SlurmExporter.from_yaml(
@@ -98,7 +101,10 @@ class CLIConfig:
             self.host = SlurmSSHRemote(self.host, interactive=self.interactive, cpu=self.cpu)
 
         for export in self.exports:
-            export.sync(host=self.host, dry=self.dry)
+            if self.sync:
+                export.sync(host=self.host, dry=self.dry)
+            else:
+                export.bundle(host=self.host, dry=self.dry)
 
 
 def main():
