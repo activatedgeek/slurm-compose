@@ -1,0 +1,64 @@
+vars:
+  NAME: evaluation
+  MODEL: qwen3
+  NODES: 1
+
+name: evaluation
+directory: /shared/slurm-compose/evaluation
+
+sbatch:
+  job_name: ${{ vars.NAME }}
+  nodes: ${{ vars.NODES }}
+  ntasks_per_node: 2
+  cpus_per_task: 4
+  gpus_per_node: 1
+  mem: 32G
+  partition: gpu
+  time: "01:00:00"
+
+completion:
+  mode: step
+  step: evaluate
+
+steps:
+  prepare:
+    script:
+      - echo "Preparing evaluation"
+      - |
+        cd /shared/project
+        python prepare.py
+
+  model:
+    script:
+      - /shared/project/start-model.sh --model ${{ vars.MODEL }}
+    kwargs:
+      container_image: /shared/images/model.sqsh
+      nodes: 1
+      ntasks_per_node: 1
+      cpus_per_task: 4
+      gpus_per_node: 1
+      mem: 24G
+    depends_on:
+      prepare:
+        condition: completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", 'test -f "$SCOMPOSE_ARTIFACT_DIR/ready.json"']
+      interval: 10s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  evaluate:
+    script:
+      - python /shared/project/evaluate.py
+    kwargs:
+      nodes: 1
+      ntasks_per_node: 1
+      cpus_per_task: 4
+      gpus_per_node: 0
+      mem: 8G
+    environment:
+      DATASET: /shared/data/evaluation
+    depends_on:
+      model:
+        condition: healthy

@@ -10,6 +10,10 @@ EXPORTS_HOME = HOME / "exports"
 CONFIG_HOME = Path(
     os.getenv("SCOMPOSE_CONFIG_HOME") or Path(os.getenv("XDG_CONFIG_HOME", Path.home() / ".config")) / "slurm-compose"
 )
+STATE_HOME = Path(
+    os.getenv("SCOMPOSE_STATE_HOME")
+    or Path(os.getenv("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "slurm-compose"
+)
 
 PROJECT_NAME = os.getenv("SCOMPOSE_PROJECT_NAME")
 

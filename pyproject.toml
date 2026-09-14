@@ -17,6 +17,7 @@ dependencies = [
     "Jinja2",
     "paramiko",
     "pathspec",
+    "pydantic>=2,<3",
     "pytimeparse",
     "rich",
     "ruamel.yaml",
@@ -24,7 +25,8 @@ dependencies = [
 ]
 optional-dependencies.test = ["prek", "pytest"]
 
-scripts.slurm-compose = "slurm_compose.cli:main"
+scripts.slurm-compose = "slurm_compose.legacy_cli:main"
+scripts.scompose = "slurm_compose.cli:main"
 
 [project.entry-points."slurm_compose.scripts"]
 core = "slurm_compose.plugins.utils:register_core_script_plugins"

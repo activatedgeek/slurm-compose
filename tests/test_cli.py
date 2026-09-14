@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from slurm_compose.cli import CLIConfig
+from slurm_compose.legacy_cli import CLIConfig
 
 
 @pytest.fixture
