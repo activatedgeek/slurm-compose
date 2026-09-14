@@ -1,4 +1,5 @@
 import pytest
+
 from slurm_compose.api.scripts import PyxisScript, Script, SrunScript
 from slurm_compose.api.scripts.ray import IdleRayScript, RayScript
 from slurm_compose.api.scripts.sglang import SGLangScript

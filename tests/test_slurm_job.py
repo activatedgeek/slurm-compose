@@ -3,6 +3,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
+
 from slurm_compose.api.scripts import Script, SrunScript
 from slurm_compose.api.slurm import SlurmJob
 

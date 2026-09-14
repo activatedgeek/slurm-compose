@@ -1,19 +1,21 @@
 import os
 import subprocess
+from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
+
 from slurm_compose.cli import CLIConfig
 
 
 @pytest.fixture
 def cli_config() -> CLIConfig:
-    return CLIConfig(file="pkgs/core/tests/configs/test.yml", nodes=2)
+    return CLIConfig(file=Path(__file__).parent / "configs/test.yml", nodes=2)
 
 
 @pytest.fixture
 def cli_wait_config() -> CLIConfig:
-    return CLIConfig(file="pkgs/core/tests/configs/wait.yml", delay=0)
+    return CLIConfig(file=Path(__file__).parent / "configs/wait.yml", delay=0)
 
 
 def test_cli(cli_config: CLIConfig):

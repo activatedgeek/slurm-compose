@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from slurm_compose.api.scripts import PyxisScript
 
 

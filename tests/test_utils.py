@@ -1,4 +1,5 @@
 import pytest
+
 from slurm_compose.api.scripts import PyxisScript
 from slurm_compose.api.scripts.utils import maybe_update_fields
 

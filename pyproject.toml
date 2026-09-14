@@ -1,16 +1,47 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools", "wheel"]
+
 [project]
-name = "slurm-compose-meta"
-version = "0.0.0a"
+name = "slurm-compose"
+description = "Run slurm like docker-compose."
 requires-python = ">=3.11,<3.13"
 classifiers = [
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
 ]
-dependencies = ["slurm-compose[test]"]
+dynamic = ["version"]
+dependencies = [
+    "fsspec",
+    "Jinja2",
+    "paramiko",
+    "pathspec",
+    "pytimeparse",
+    "rich",
+    "ruamel.yaml",
+    "tyro"
+]
+optional-dependencies.test = ["prek", "pytest"]
 
-[tool.uv]
-sources.slurm-compose = { path = "pkgs/core", editable = true }
+scripts.slurm-compose = "slurm_compose.cli:main"
+
+[project.entry-points."slurm_compose.scripts"]
+core = "slurm_compose.plugins.utils:register_core_script_plugins"
+
+[project.entry-points."slurm_compose.export"]
+core = "slurm_compose.plugins.utils:register_core_export_plugins"
+
+[tool.setuptools]
+include-package-data = true
+package-dir = { "" = "src" }
+dynamic.version = { attr = "slurm_compose.__version__" }
+packages.find.where = ["src"]
+
+[tool.setuptools.package-data]
+"slurm_compose.api.scripts" = ["**/*.sh"]
+"slurm_compose.api.templates" = ["**/*.j2"]
+"slurm_compose.api" = ["**/*.scignore"]
 
 [tool.ruff]
 target-version = "py311"
@@ -19,4 +50,4 @@ lint.extend-select = ["I"]
 
 [tool.pytest.ini_options]
 addopts = "-qrsx --tb=short"
-testpaths = ["pkgs/core/tests"]
+testpaths = ["tests"]
