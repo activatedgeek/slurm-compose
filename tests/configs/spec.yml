@@ -1,13 +1,10 @@
+name: evaluation
+
 vars:
-  NAME: evaluation
   MODEL: qwen3
   NODES: 1
 
-name: evaluation
-directory: /shared/slurm-compose/evaluation
-
 sbatch:
-  job_name: ${{ vars.NAME }}
   nodes: ${{ vars.NODES }}
   ntasks_per_node: 2
   cpus_per_task: 4
@@ -15,22 +12,17 @@ sbatch:
   mem: 32G
   partition: gpu
   time: "01:00:00"
-
-completion:
-  mode: step
-  step: evaluate
+  completion:
+    mode: step
+    step: evaluate
 
 steps:
   prepare:
-    script:
-      - echo "Preparing evaluation"
-      - |
-        cd /shared/project
-        python prepare.py
+    command: >-
+      python /shared/project/prepare.py
 
   model:
-    script:
-      - /shared/project/start-model.sh --model ${{ vars.MODEL }}
+    command: ["/shared/project/start-model.sh", "--model", "${{ vars.MODEL }}"]
     kwargs:
       container_image: /shared/images/model.sqsh
       nodes: 1
@@ -49,8 +41,7 @@ steps:
       start_period: 30s
 
   evaluate:
-    script:
-      - python /shared/project/evaluate.py
+    command: "python /shared/project/evaluate.py"
     kwargs:
       nodes: 1
       ntasks_per_node: 1

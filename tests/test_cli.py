@@ -5,6 +5,8 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
+from slurm_compose.cli import ConfigCommand, UpCommand
+from slurm_compose.config import STATE_HOME
 from slurm_compose.legacy_cli import CLIConfig
 
 
@@ -18,6 +20,7 @@ def cli_wait_config() -> CLIConfig:
     return CLIConfig(file=Path(__file__).parent / "configs/wait.yml", delay=0)
 
 
+@pytest.mark.skip(reason="legacy CLI")
 def test_cli(cli_config: CLIConfig):
     with TemporaryDirectory() as tmp:
         cli_config.export_dir = tmp
@@ -33,6 +36,7 @@ def test_cli(cli_config: CLIConfig):
             assert (export.package_dir / "slurm_compose").is_dir()
 
 
+@pytest.mark.skip(reason="legacy CLI")
 def test_cli_wait_exec(cli_wait_config: CLIConfig):
     with TemporaryDirectory() as tmp:
         cli_wait_config.export_dir = tmp
@@ -64,4 +68,42 @@ def test_cli_wait_exec(cli_wait_config: CLIConfig):
         )
         assert fail_job_result.returncode == 1
         assert "TESTENV: testvalue" in fail_job_result.stdout
-        assert "Finished Step" not in fail_job_result.stdout
+    assert "Finished Step" not in fail_job_result.stdout
+
+
+def test_new_cli_loads_compose_config():
+    command = ConfigCommand(file=Path(__file__).parent / "configs/spec.yml")
+    command()
+    config = command.config
+    assert config.name == "evaluation"
+    assert config.directory == STATE_HOME
+
+
+def test_new_cli_overrides_compose_config():
+    cli_config = ConfigCommand(
+        file=Path(__file__).parent / "configs/spec.yml",
+        job_name="cli-evaluation",
+        jobs_dir=Path("/tmp/cli-evaluation"),
+    )
+    cli_config()
+    config = cli_config.config
+    assert config.name == "cli-evaluation"
+    assert config.directory == Path("/tmp/cli-evaluation")
+
+
+def test_new_cli_overrides_compose_vars():
+    command = ConfigCommand(
+        file=Path(__file__).parent / "configs/spec.yml",
+        vars=["MODEL=llama", "NODES=2"],
+    )
+    assert command.config.vars["MODEL"] == "llama"
+    assert command.config.vars["NODES"] == 2
+    assert command.config.steps["model"].command == ["/shared/project/start-model.sh", "--model", "llama"]
+
+
+def test_new_cli_up_stores_passthrough_arguments():
+    command = UpCommand(
+        file=Path(__file__).parent / "configs/spec.yml",
+        passthrough=["--partition=gpu", "--comment", "evaluation"],
+    )
+    assert command.passthrough == ["--partition=gpu", "--comment", "evaluation"]

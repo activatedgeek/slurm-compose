@@ -8,10 +8,10 @@ from .models import (
     HealthcheckConfig,
     PyxisConfig,
     SbatchConfig,
-    Script,
     SlurmResourceConfig,
     SrunConfig,
     StepConfig,
+    StepKwargsConfig,
 )
 from .resolve import resolve_vars
 
@@ -22,10 +22,10 @@ __all__ = [
     "HealthcheckConfig",
     "PyxisConfig",
     "SbatchConfig",
-    "Script",
     "ComposeConfig",
     "SlurmResourceConfig",
     "SrunConfig",
+    "StepKwargsConfig",
     "StepConfig",
     "resolve_vars",
 ]

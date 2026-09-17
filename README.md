@@ -10,9 +10,9 @@ format. See [the example specification](tests/configs/spec.yml).
 
 - `ComposeConfig` describes one job allocation, an optional shared metadata
   `directory`, and a mapping of named `steps`. The top-level `name` is a plain
-  string, while `directory` is a path. Both are currently optional and may be
-  populated by later validators. If `name` is omitted, it defaults to
-  `SCOMPOSE_PROJECT_NAME` or the current working directory name.
+  string, while `directory` is a path. `directory` is optional. If `name` is
+  omitted, it defaults to `SCOMPOSE_PROJECT_NAME`; validation fails when that
+  environment variable is also unset.
 - `sbatch` is a `SbatchConfig`: a flat block matching the sbatch argument fields of
   the existing `SlurmJob`, including `extra_argv`. Script-level orchestration
   settings are not sbatch options and do not belong in this block. The key is
@@ -28,10 +28,10 @@ format. See [the example specification](tests/configs/spec.yml).
   `SrunConfig` or `PyxisConfig`, matching the arguments of `SrunScript` and
   `PyxisScript`. Container settings use `container_image`, `container_mounts`,
   `container_workdir`, and `container_mount_home` inside `kwargs`.
-- A missing `kwargs` block is a shell step. Otherwise, the `kwargs` class supplies
-  its `launcher` property, which is `srun` for both `SrunConfig` and its
-  `PyxisConfig` subclass. Pyxis remains distinguishable by its concrete class
-  and container fields. An empty `kwargs: {}` is invalid because it still requires
+- A missing `kwargs` block is a shell step. Otherwise, the concrete `kwargs`
+  class determines the launcher: `SrunConfig` or its `PyxisConfig` subclass.
+  Pyxis remains distinguishable by its concrete class and container fields. An
+  empty `kwargs: {}` is invalid because it still requires
   explicit resources. User scripts own multinode coordination.
 - The optional `type` field is reserved for custom `SrunConfig` subclasses. It
   accepts a fully qualified class name in the same format as
@@ -46,16 +46,14 @@ format. See [the example specification](tests/configs/spec.yml).
 - The example health check tests a marker under `$SCOMPOSE_ARTIFACT_DIR`, the
   planned attempt-local artifact directory. Health-check execution and this
   runtime environment contract will be implemented with the supervisor.
-- Top-level `completion` defaults to `mode: any`. Use `mode: all` to wait for
+- `sbatch.completion` defaults to `mode: any`. Use `mode: all` to wait for
   all steps, or `mode: step` with a named `step` to finish when that step
   exits and stop supporting steps. Launcher
   class describes execution, not whether a command is finite or long-running.
-- `script` is an ordered list of complete shell commands, not an argv list.
-  Each item may be a multiline YAML block (`|`), including shell control flow or
-  heredocs. Empty or whitespace-only items are rejected; contents are preserved.
-  The command sequence belongs to one step, including for srun/Pyxis launches.
-  Health-check `CMD` lists retain Compose's argv semantics. Environment values
-  are strings.
+- `command` follows Docker Compose's two forms: a string is shell form, while a
+  list of strings is exec form. For example, `command: "python evaluate.py"`
+  or `command: ["python", "evaluate.py"]`. Empty commands and NUL characters
+  are rejected. Environment values are strings.
 - Resource fields are required in `sbatch` and every `kwargs` block. There is no
   automatic sizing or resource inheritance.
 
