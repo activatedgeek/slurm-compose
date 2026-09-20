@@ -71,5 +71,12 @@ class SbatchJobConfig(BaseConfig):
         return template.render(
             sbatch_argv=self.compose.sbatch.argv,
             config_hash=self.compose.hash,
+            max_restarts=self.compose.sbatch.max_restarts,
+            completion_mode=self.compose.sbatch.completion.mode,
+            completion_step=(
+                None
+                if self.compose.sbatch.completion.step is None
+                else shlex.quote(self.compose.sbatch.completion.step)
+            ),
             steps=rendered_steps,
         )

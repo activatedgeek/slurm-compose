@@ -47,7 +47,7 @@ class SlurmResourceConfig(StepKwargsConfig):
 class SbatchConfig(SlurmResourceConfig):
     """Explicit resource flags for sbatch."""
 
-    _argv_exclude: ClassVar[set[str]] = SlurmResourceConfig._argv_exclude | {"completion"}
+    _argv_exclude: ClassVar[set[str]] = SlurmResourceConfig._argv_exclude | {"completion", "max_restarts"}
     job_name: str | None = None
     account: str | None = None
     partition: str | None = None
@@ -59,6 +59,7 @@ class SbatchConfig(SlurmResourceConfig):
     open_mode: Literal["append", "truncate"] = "append"
     requeue: Literal[True] | None = True
     array: str | None = None
+    max_restarts: int = Field(default=0, ge=0)
     extra_argv: list[str] = Field(default_factory=list, description="Additional equals-separated sbatch arguments.")
     completion: CompletionConfig = Field(default_factory=CompletionConfig)
 

@@ -87,7 +87,7 @@ def test_materialize_respects_topology_and_step_launchers(spec_data):
     assert "} & step_pids[prepare]=$!" in script
     assert "} & step_pids[prepare]=$!\n\n\n{\n##\n# Step 1: model" in script
     assert 'wait "${step_pids[prepare]}"' in script
-    assert 'wait -n "${step_pids[@]}"' in script
+    assert 'wait "${step_pids[evaluate]}"' in script
     assert 'kill -TERM "$pid"' in script
 
 
@@ -255,7 +255,10 @@ def test_pyxis_paths_are_normalized(spec_data):
 )
 def test_argument_names_match_existing_backends(config_class, backend_class):
     argument_names = {field.name for field in fields(backend_class) if field.metadata.get("argv", True)}
-    assert set(config_class.model_fields) - {"completion"} == argument_names | {"extra_argv"}
+    excluded = {"completion"}
+    if config_class is SbatchConfig:
+        excluded.add("max_restarts")
+    assert set(config_class.model_fields) - excluded == argument_names | {"extra_argv"}
 
 
 def test_argument_configs_pass_directly_to_backends(spec_data):
