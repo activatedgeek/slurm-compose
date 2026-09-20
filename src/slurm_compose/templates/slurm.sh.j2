@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+
+##
+# Generated via Slurm Compose.
+# Config Hash: {{ config_hash[:8] }}
+#
+
+{% for arg in sbatch_argv %}
+#SBATCH {{ arg }}
+{% endfor %}
+#SBATCH --signal=B:USR1@10
+
+function maybe_sbatch_requeue {
+    if [[ -n "${SLURM_JOB_ID}" ]]; then
+        trap - USR1
+    fi
+
+    local exit_code=${1} max_restarts=0
+
+    if [[ -n "${SLURM_EVENT}" ]]; then
+        local -A event_log=(
+            [EXIT]="[ERROR] Non-zero exit code (${exit_code}) detected."
+            [TIMEOUT]="[WARNING] Job approaching time limit."
+        )
+
+        echo "${event_log[$SLURM_EVENT]}" >&2
+    fi
+
+    if [[ (-n "${SLURM_JOB_ID}") && ($max_restarts -gt 0) ]]; then
+        local restarts=${SLURM_RESTART_COUNT:-0}
+
+        if (( restarts < max_restarts )); then
+            local requeue_job_id="${SLURM_JOB_ID}"
+            if [[ (-n "${SLURM_ARRAY_JOB_ID:-}") && (-n "${SLURM_ARRAY_TASK_ID:-}") ]]; then
+                requeue_job_id="${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+            fi
+
+            echo "[INFO] Requeueing job ${requeue_job_id} (attempt $(( restarts + 1 ))/${max_restarts})" >&2
+            if ! scontrol requeue "${requeue_job_id}"; then
+                echo "[ERROR] Failed to requeue job ${requeue_job_id}." >&2
+                exit $exit_code
+            fi
+        else
+            echo "[ERROR] Max restarts (${max_restarts}) reached." >&2
+            exit $exit_code
+        fi
+    fi
+
+    return $exit_code
+}
+
+if [[ -n "${SLURM_JOB_ID}" ]]; then
+    trap 'SLURM_EVENT=TIMEOUT maybe_sbatch_requeue 124' USR1
+fi
+
+set -euo pipefail
+
+declare -A step_pids=()
+{% for step in steps %}
+{
+##
+# Step {{ loop.index0 }}: {{ step.name }}
+#
+{% for parent in step.parents %}
+wait "${step_pids[{{ parent }}]}"
+{% endfor %}
+{% for key, value in step.environment.items() %}
+export {{ key }}={{ value }}
+{% endfor %}
+
+{%+ for script in step.scripts %}
+{{ script }}
+{% endfor +%}
+} & step_pids[{{ step.pid_key }}]=$!
+{{ "\n" if not loop.last }}
+{% endfor %}
+## Wait for any step to finish, then terminate and reap the remaining steps.
+exit_code=0
+wait -n "${step_pids[@]}" || exit_code=$?
+for pid in "${step_pids[@]}"; do
+    kill -TERM "$pid" 2>/dev/null || true
+done
+wait "${step_pids[@]}" 2>/dev/null || true
+if [[ $exit_code -ne 0 ]]; then
+    SLURM_EVENT=EXIT maybe_sbatch_requeue $exit_code
+fi
+exit "$exit_code"

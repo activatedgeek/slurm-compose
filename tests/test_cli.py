@@ -74,7 +74,7 @@ def test_cli_wait_exec(cli_wait_config: CLIConfig):
 def test_new_cli_loads_compose_config():
     command = ConfigCommand(file=Path(__file__).parent / "configs/spec.yml")
     command()
-    config = command.config
+    config = command.compose
     assert config.name == "evaluation"
     assert config.directory == STATE_HOME
 
@@ -86,7 +86,7 @@ def test_new_cli_overrides_compose_config():
         jobs_dir=Path("/tmp/cli-evaluation"),
     )
     cli_config()
-    config = cli_config.config
+    config = cli_config.compose
     assert config.name == "cli-evaluation"
     assert config.directory == Path("/tmp/cli-evaluation")
 
@@ -96,14 +96,19 @@ def test_new_cli_overrides_compose_vars():
         file=Path(__file__).parent / "configs/spec.yml",
         vars=["MODEL=llama", "NODES=2"],
     )
-    assert command.config.vars["MODEL"] == "llama"
-    assert command.config.vars["NODES"] == 2
-    assert command.config.steps["model"].command == ["/shared/project/start-model.sh", "--model", "llama"]
+    assert command.compose.vars["MODEL"] == "llama"
+    assert command.compose.vars["NODES"] == 2
+    assert command.compose.steps["model"].command == ["/shared/project/start-model.sh", "--model", "llama"]
 
 
-def test_new_cli_up_stores_passthrough_arguments():
+def test_new_cli_up_stores_passthrough_arguments(capsys):
     command = UpCommand(
         file=Path(__file__).parent / "configs/spec.yml",
         passthrough=["--partition=gpu", "--comment", "evaluation"],
     )
     assert command.passthrough == ["--partition=gpu", "--comment", "evaluation"]
+    command()
+    output = capsys.readouterr().out
+    assert "#!/usr/bin/env bash" in output
+    assert "#SBATCH --comment\n" not in output
+    assert "#SBATCH evaluation\n" not in output

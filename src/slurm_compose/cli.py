@@ -8,7 +8,7 @@ from ruamel.yaml import YAML
 
 from slurm_compose import __version__
 from slurm_compose.config import logger
-from slurm_compose.spec import ComposeConfig
+from slurm_compose.spec import ComposeConfig, SbatchJobConfig
 
 
 @dataclass
@@ -27,7 +27,7 @@ class ConfigCommand:
     vars: Annotated[list[str], tyro.conf.arg(name="var"), tyro.conf.UseAppendAction] = field(default_factory=list)
     """Override variables using NAME=VALUE syntax."""
 
-    config: ComposeConfig = field(init=False)
+    compose: ComposeConfig = field(init=False)
 
     def __post_init__(self):
         runtime_vars = {}
@@ -37,10 +37,10 @@ class ConfigCommand:
             if not separator or not key:
                 raise ValueError(f"runtime variable must use NAME=VALUE syntax: {assignment!r}")
             runtime_vars[key] = yaml.load(value)
-        self.config = ComposeConfig.from_yaml(self.file, self.job_name, self.jobs_dir, runtime_vars)
+        self.compose = ComposeConfig.from_yaml(self.file, self.job_name, self.jobs_dir, runtime_vars)
 
     def __call__(self):
-        print(self.config.yaml(), end="")
+        print(self.compose.yaml(), end="")
 
 
 @dataclass
@@ -50,8 +50,14 @@ class UpCommand(ConfigCommand):
     passthrough: Annotated[list[str], tyro.conf.Positional] = field(default_factory=list)
     """Arguments after '--' separator are passed through unchanged."""
 
+    sbatch: SbatchJobConfig = field(init=False)
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.sbatch = SbatchJobConfig(compose=self.compose, passthrough=self.passthrough)
+
     def __call__(self):
-        raise NotImplementedError
+        print(self.sbatch.script(), end="")
 
 
 @dataclass

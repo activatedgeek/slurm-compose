@@ -33,13 +33,6 @@ steps:
     depends_on:
       prepare:
         condition: completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", 'test -f "$SCOMPOSE_ARTIFACT_DIR/ready.json"']
-      interval: 10s
-      timeout: 3s
-      retries: 30
-      start_period: 30s
-
   evaluate:
     command: "python /shared/project/evaluate.py"
     kwargs:
@@ -52,4 +45,4 @@ steps:
       DATASET: /shared/data/evaluation
     depends_on:
       model:
-        condition: healthy
+        condition: completed_successfully

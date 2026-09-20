@@ -12,9 +12,9 @@ from slurm_compose.config import STATE_HOME
 from slurm_compose.spec import (
     CompletionConfig,
     ComposeConfig,
-    HealthcheckConfig,
     PyxisConfig,
     SbatchConfig,
+    SbatchJobConfig,
     SrunConfig,
     StepConfig,
     StepKwargsConfig,
@@ -40,9 +40,7 @@ def test_spec_round_trip(spec_data):
     config = ComposeConfig.model_validate(spec_data)
     assert config.schema_version == 1
     assert config.directory == STATE_HOME
-    assert config.topology == {
-        "prepare": {"model": {"evaluate": {}}},
-    }
+    assert list(SbatchJobConfig(compose=config).topology) == ["prepare", "model", "evaluate"]
     assert "topology" not in config.json()
     assert isinstance(config.sbatch.completion, CompletionConfig)
     assert isinstance(config.steps["model"].kwargs, PyxisConfig)
@@ -65,11 +63,42 @@ def test_spec_round_trip(spec_data):
     assert "srun" not in schema["$defs"]["StepConfig"]["properties"]
     assert "sbatch" in schema["properties"]
     assert "job" not in schema["properties"]
-    assert "HealthcheckConfig" in schema["$defs"]
     assert "steps" in schema["properties"]
     assert "services" not in schema["properties"]
     assert "directory" in schema["properties"]
     assert "runtime" not in schema["properties"]
+
+
+def test_materialize_respects_topology_and_step_launchers(spec_data):
+    spec_data["steps"]["prepare"]["before_script"] = ["setup"]
+    spec_data["steps"]["prepare"]["after_script"] = ["cleanup"]
+    config = ComposeConfig.model_validate(spec_data)
+    script = SbatchJobConfig(
+        compose=config,
+        passthrough=["--comment", "evaluation"],
+    ).script()
+    assert "#SBATCH --job-name=evaluation" in script
+    assert f"# Config Hash: {ComposeConfig.model_validate(spec_data).hash[:8]}" in script
+    assert script.index("# Step 0: prepare") < script.index("# Step 1: model") < script.index("# Step 2: evaluate")
+    assert "setup\npython /shared/project/prepare.py\ncleanup" in script
+    assert "srun --nodes=1" in script
+    assert "--container-image=/shared/images/model.sqsh" in script
+    assert "declare -A step_pids=()" in script
+    assert "} & step_pids[prepare]=$!" in script
+    assert "} & step_pids[prepare]=$!\n\n\n{\n##\n# Step 1: model" in script
+    assert 'wait "${step_pids[prepare]}"' in script
+    assert 'wait -n "${step_pids[@]}"' in script
+    assert 'kill -TERM "$pid"' in script
+
+
+def test_step_scriptv_and_srun_command_rendering(spec_data):
+    spec_data["steps"]["prepare"].update(before_script=["setup"], after_script=["cleanup"])
+    config = ComposeConfig.model_validate(spec_data)
+    prepare = config.steps["prepare"]
+    assert prepare.scriptv == ["setup", "python /shared/project/prepare.py", "cleanup"]
+
+    model = config.steps["model"]
+    assert model.scriptv[0].startswith("srun --nodes=1")
 
 
 @pytest.mark.parametrize("field", ["nodes", "ntasks_per_node", "cpus_per_task", "gpus_per_node"])
@@ -143,29 +172,15 @@ def test_sbatch_contains_only_submission_options(spec_data, field):
 
 
 def test_unknown_dependency(spec_data):
-    spec_data["steps"]["evaluate"]["depends_on"] = {"missing": {"condition": "started"}}
+    spec_data["steps"]["evaluate"]["depends_on"] = {"missing": {"condition": "completed_successfully"}}
     with pytest.raises(ValidationError, match="unknown step 'missing'"):
         ComposeConfig.model_validate(spec_data)
 
 
 @pytest.mark.parametrize("target", ["evaluate", "model"])
 def test_dependency_cycle(spec_data, target):
-    spec_data["steps"]["model"]["depends_on"] = {target: {"condition": "started"}}
+    spec_data["steps"]["model"]["depends_on"] = {target: {"condition": "completed_successfully"}}
     with pytest.raises(ValidationError, match="cycle"):
-        ComposeConfig.model_validate(spec_data)
-
-
-@pytest.mark.parametrize("condition", ["started", "completed_successfully"])
-def test_non_health_dependencies_need_no_healthcheck(spec_data, condition):
-    spec_data["steps"]["evaluate"]["depends_on"]["model"]["condition"] = condition
-    del spec_data["steps"]["model"]["healthcheck"]
-    ComposeConfig.model_validate(spec_data)
-
-
-@pytest.mark.parametrize("healthcheck", [None, {"disable": True}, {"test": ["NONE"]}])
-def test_healthy_dependency_requires_enabled_healthcheck(spec_data, healthcheck):
-    spec_data["steps"]["model"]["healthcheck"] = healthcheck
-    with pytest.raises(ValidationError, match="enabled healthcheck"):
         ComposeConfig.model_validate(spec_data)
 
 
@@ -207,13 +222,13 @@ def test_sbatch_is_optional(spec_data):
 
 def test_name_uses_project_name_fallback(spec_data, monkeypatch):
     spec_data.pop("name", None)
-    monkeypatch.setattr("slurm_compose.spec.models.PROJECT_NAME", "project-name")
+    monkeypatch.setattr("slurm_compose.spec.config.PROJECT_NAME", "project-name")
     assert ComposeConfig.model_validate(spec_data).name == "project-name"
 
 
 def test_name_is_required_without_project_name(spec_data, monkeypatch):
     spec_data.pop("name", None)
-    monkeypatch.setattr("slurm_compose.spec.models.PROJECT_NAME", None)
+    monkeypatch.setattr("slurm_compose.spec.config.PROJECT_NAME", None)
     with pytest.raises(ValidationError, match="name is required"):
         ComposeConfig.model_validate(spec_data)
 
@@ -232,35 +247,6 @@ def test_pyxis_paths_are_normalized(spec_data):
     config = ComposeConfig.model_validate(spec_data)
     assert config.steps["model"].kwargs.container_image == Path("/shared/images/model.sqsh")
     assert config.steps["model"].kwargs.container_workdir == Path("/shared/project")
-
-
-@pytest.mark.parametrize("test", ["test -f ready", ["CMD", "test", "-f", "ready"], ["CMD-SHELL", "test -f ready"]])
-def test_healthcheck_commands(test):
-    healthcheck = HealthcheckConfig(test=test, interval="1m30s", timeout="500ms")
-    assert healthcheck.enabled
-    assert healthcheck.test == test
-    assert HealthcheckConfig.model_validate_json(healthcheck.model_dump_json()) == healthcheck
-
-
-@pytest.mark.parametrize("test", ["", [], ["CMD"], ["NONE", "extra"], ["CMD-SHELL", "true", "extra"], ["true"]])
-def test_invalid_healthcheck_commands(test):
-    with pytest.raises(ValidationError, match="test"):
-        HealthcheckConfig(test=test)
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [{}, {"test": "true", "retries": 0}],
-)
-def test_invalid_healthcheck_settings(kwargs):
-    with pytest.raises(ValidationError):
-        HealthcheckConfig(**kwargs)
-
-
-def test_healthcheck_duration_strings_are_unvalidated():
-    healthcheck = HealthcheckConfig(test="true", interval="tomorrow", timeout="custom-duration")
-    assert healthcheck.interval == "tomorrow"
-    assert healthcheck.timeout == "custom-duration"
 
 
 @pytest.mark.parametrize(

@@ -36,16 +36,7 @@ format. See [the example specification](tests/configs/spec.yml).
 - The optional `type` field is reserved for custom `SrunConfig` subclasses. It
   accepts a fully qualified class name in the same format as
   `pkgutil.resolve_name`, for example `my_package.launchers:CustomSrunConfig`.
-- Dependencies use `started`, `healthy`, or `completed_successfully` startup
-  gates. A `healthy` dependency requires an enabled health check on its target.
-- `HealthcheckConfig` uses Compose-style `test`, `interval`, `timeout`, `retries`,
-  `start_period`, `start_interval`, and `disable` fields. Tests accept a shell
-  string, `["CMD", executable, ...]`, `["CMD-SHELL", command]`, or `["NONE"]`.
-  Durations use units such as `500ms`, `30s`, and `1m30s`. An enabled check must
-  supply a test; image health checks are not implicitly inherited.
-- The example health check tests a marker under `$SCOMPOSE_ARTIFACT_DIR`, the
-  planned attempt-local artifact directory. Health-check execution and this
-  runtime environment contract will be implemented with the supervisor.
+- Dependencies use `completed_successfully` startup gates.
 - `sbatch.completion` defaults to `mode: any`. Use `mode: all` to wait for
   all steps, or `mode: step` with a named `step` to finish when that step
   exits and stop supporting steps. Launcher
