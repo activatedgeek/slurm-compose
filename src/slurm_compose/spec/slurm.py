@@ -1,4 +1,3 @@
-import shlex
 from datetime import timedelta
 from pathlib import Path
 from typing import ClassVar, Literal, Self
@@ -7,7 +6,7 @@ from warnings import warn
 from pydantic import Field, field_validator, model_validator
 from pytimeparse import parse as timeparse
 
-from .base import BaseConfig, StepKwargsConfig
+from .base import BaseConfig, BashConfig
 
 
 class CompletionConfig(BaseConfig):
@@ -25,7 +24,7 @@ class CompletionConfig(BaseConfig):
         return self
 
 
-class SlurmResourceConfig(StepKwargsConfig):
+class SlurmResourceConfig(BashConfig):
     """Explicit resource flags shared by sbatch and srun."""
 
     _argv_exclude: ClassVar[set[str]] = {"extra_argv"}
@@ -34,14 +33,15 @@ class SlurmResourceConfig(StepKwargsConfig):
     cpus_per_task: int = Field(gt=0)
     gpus_per_node: int = Field(ge=0)
     mem: str = Field(default=None)
+    extra_argv: list[str] = Field(default_factory=list, description="Additional equals-separated arguments.")
 
     @property
     def argv(self) -> list[str]:
         return super().argv + self.extra_argv
 
-    def make_script(self, command: str | list[str]) -> str:
-        prefix = shlex.join(["srun", *self.argv])
-        return prefix + " \\\n" + super().make_script(command)
+    def script(self, command: str | list[str]) -> str:
+        prefix = " ".join(["srun", *self.argv])
+        return prefix + " \\\n" + super().script(command)
 
 
 class SbatchConfig(SlurmResourceConfig):
@@ -49,18 +49,13 @@ class SbatchConfig(SlurmResourceConfig):
 
     _argv_exclude: ClassVar[set[str]] = SlurmResourceConfig._argv_exclude | {"completion", "max_restarts"}
     job_name: str | None = None
-    account: str | None = None
-    partition: str | None = None
-    qos: str | None = None
     time: str | timedelta | None = None
-    begin: str | None = None
     output: str | Path | None = None
     error: str | Path | None = None
     open_mode: Literal["append", "truncate"] = "append"
     requeue: Literal[True] | None = True
     array: str | None = None
     max_restarts: int = Field(default=0, ge=0)
-    extra_argv: list[str] = Field(default_factory=list, description="Additional equals-separated sbatch arguments.")
     completion: CompletionConfig = Field(default_factory=CompletionConfig)
 
     @field_validator("time", mode="after")
@@ -93,7 +88,6 @@ class SrunConfig(SlurmResourceConfig):
     kill_on_bad_exit: Literal[0, 1] = 1
     exact: Literal[True] | None = True
     overlap: Literal[True] | None = None
-    extra_argv: list[str] = Field(default_factory=list, description="Additional equals-separated srun arguments.")
 
 
 class PyxisConfig(SrunConfig):

@@ -10,7 +10,6 @@ sbatch:
   cpus_per_task: 4
   gpus_per_node: 1
   mem: 32G
-  partition: gpu
   time: "01:00:00"
   max_restarts: 3
   completion:

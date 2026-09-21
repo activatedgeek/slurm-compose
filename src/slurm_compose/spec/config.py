@@ -1,6 +1,5 @@
 import hashlib
 import json
-import shlex
 from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 from pkgutil import resolve_name
@@ -11,7 +10,7 @@ from ruamel.yaml import YAML
 
 from slurm_compose.config import PROJECT_NAME, STATE_HOME
 
-from .base import BaseConfig, StepKwargsConfig
+from .base import BaseConfig, BashConfig, StepKwargsConfig
 from .resolve import resolve_vars
 from .slurm import PyxisConfig, SbatchConfig, SrunConfig
 
@@ -37,11 +36,9 @@ class StepConfig(BaseConfig):
     def scriptv(self) -> list[str]:
         """Return before-script, command, and after-script entries."""
         if self.kwargs is not None:
-            script = self.kwargs.make_script(self.command)
-        elif isinstance(self.command, list):
-            script = shlex.join(self.command)
+            script = self.kwargs.script(self.command)
         else:
-            script = self.command
+            script = BashConfig().script(self.command)
         return [*self.before_script, script, *self.after_script]
 
     @model_validator(mode="before")
@@ -58,6 +55,8 @@ class StepConfig(BaseConfig):
             raise ValueError(f"unable to resolve custom step type {value['type']!r}") from exc
         if not isinstance(step_class, type) or not issubclass(step_class, StepKwargsConfig):
             raise ValueError(f"custom type {value['type']!r} must derive from StepKwargsConfig")
+        if "script" not in step_class.__dict__:
+            raise ValueError(f"custom type {value['type']!r} must implement script")
         try:
             kwargs = step_class.model_validate(value["kwargs"])
         except AttributeError as exc:
@@ -91,6 +90,8 @@ class StepConfig(BaseConfig):
                 raise ValueError(f"unable to resolve custom type {self.type!r}") from exc
             if not isinstance(step_class, type) or not issubclass(step_class, StepKwargsConfig):
                 raise ValueError(f"custom type {self.type!r} must derive from StepKwargsConfig")
+            if "script" not in step_class.__dict__:
+                raise ValueError(f"custom type {self.type!r} must implement script")
             if self.kwargs is None or not isinstance(self.kwargs, step_class):
                 raise ValueError(f"custom type {self.type!r} does not match kwargs")
         return self

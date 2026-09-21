@@ -1,12 +1,13 @@
 """Typed public configuration models for Slurm Compose."""
 
-from .base import BaseConfig, StepKwargsConfig
+from .base import BaseConfig, BashConfig, StepKwargsConfig
 from .config import ComposeConfig, DependencyConfig, StepConfig
 from .sbatch import SbatchJobConfig
 from .slurm import CompletionConfig, PyxisConfig, SbatchConfig, SlurmResourceConfig, SrunConfig
 
 __all__ = [
     "BaseConfig",
+    "BashConfig",
     "CompletionConfig",
     "DependencyConfig",
     "PyxisConfig",

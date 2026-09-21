@@ -54,7 +54,7 @@ class UpCommand(ConfigCommand):
 
     def __post_init__(self):
         super().__post_init__()
-        self.sbatch = SbatchJobConfig(compose=self.compose, passthrough=self.passthrough)
+        self.sbatch = SbatchJobConfig(compose=self.compose, extra_argv=self.passthrough)
 
     def __call__(self):
         print(self.sbatch.script(), end="")

@@ -24,9 +24,15 @@ from slurm_compose.spec import (
 class CustomSrunConfig(SrunConfig):
     custom_flag: str
 
+    def script(self, command):
+        return f"custom-srun {command}"
+
 
 class CustomStepConfig(StepKwargsConfig):
     custom_flag: str
+
+    def script(self, command):
+        return f"custom-step {command}"
 
 
 @pytest.fixture
@@ -40,7 +46,14 @@ def test_spec_round_trip(spec_data):
     config = ComposeConfig.model_validate(spec_data)
     assert config.schema_version == 1
     assert config.directory == STATE_HOME
-    assert list(SbatchJobConfig(compose=config).topology) == ["prepare", "model", "evaluate"]
+    assert [step["name"] for step in SbatchJobConfig(compose=config).step_topology] == [
+        "prepare",
+        "model",
+        "evaluate",
+    ]
+    job = SbatchJobConfig(compose=config)
+    assert job.job_name == f"evaluation-{config.hash[:16]}"
+    assert job.job_dir == STATE_HOME / job.job_name
     assert "topology" not in config.json()
     assert isinstance(config.sbatch.completion, CompletionConfig)
     assert isinstance(config.steps["model"].kwargs, PyxisConfig)
@@ -75,12 +88,17 @@ def test_materialize_respects_topology_and_step_launchers(spec_data):
     config = ComposeConfig.model_validate(spec_data)
     script = SbatchJobConfig(
         compose=config,
-        passthrough=["--comment", "evaluation"],
+        extra_argv=["--comment", "evaluation"],
     ).script()
-    assert "#SBATCH --job-name=evaluation" in script
-    assert f"# Config Hash: {ComposeConfig.model_validate(spec_data).hash[:8]}" in script
+    assert f"#SBATCH --job-name={SbatchJobConfig(compose=config).job_name}" in script
+    assert f"SCOMPOSE_JOB_DIR={SbatchJobConfig(compose=config).job_dir}" in script
+    assert f"#SBATCH --output={SbatchJobConfig(compose=config).output}" in script
+    assert '--output="${SCOMPOSE_JOB_DIR}/slurm-%j/model.log"' in script
+    assert "SCOMPOSE_JOB_NAME=evaluation" in script
+    assert f"SCOMPOSE_JOB_HASH={config.hash}" in script
+    assert 'SCOMPOSE_JOB_HASH_SHORT="${SCOMPOSE_JOB_HASH:0:16}"' in script
     assert script.index("# Step 0: prepare") < script.index("# Step 1: model") < script.index("# Step 2: evaluate")
-    assert "setup\npython /shared/project/prepare.py\ncleanup" in script
+    assert "setup\nbash -l 'python /shared/project/prepare.py'\ncleanup" in script
     assert "srun --nodes=1" in script
     assert "--container-image=/shared/images/model.sqsh" in script
     assert "declare -A step_pids=()" in script
@@ -95,7 +113,7 @@ def test_step_scriptv_and_srun_command_rendering(spec_data):
     spec_data["steps"]["prepare"].update(before_script=["setup"], after_script=["cleanup"])
     config = ComposeConfig.model_validate(spec_data)
     prepare = config.steps["prepare"]
-    assert prepare.scriptv == ["setup", "python /shared/project/prepare.py", "cleanup"]
+    assert prepare.scriptv == ["setup", "bash -l 'python /shared/project/prepare.py'", "cleanup"]
 
     model = config.steps["model"]
     assert model.scriptv[0].startswith("srun --nodes=1")
@@ -258,22 +276,22 @@ def test_argument_names_match_existing_backends(config_class, backend_class):
     excluded = {"completion"}
     if config_class is SbatchConfig:
         excluded.add("max_restarts")
-    assert set(config_class.model_fields) - excluded == argument_names | {"extra_argv"}
+    if config_class is SbatchConfig:
+        argument_names -= {"account", "partition", "qos", "begin"}
+    expected = argument_names | {"extra_argv"}
+    assert set(config_class.model_fields) - excluded == expected
 
 
 def test_argument_configs_pass_directly_to_backends(spec_data):
-    spec_data["sbatch"].update(account="research", begin="now", array="0-2", extra_argv=["--comment=evaluation"])
+    spec_data["sbatch"].update(array="0-2")
     spec_data["steps"]["model"]["kwargs"].update(
         container_mounts=["/shared:/shared"], container_workdir="/shared/project", container_mount_home=True
     )
     config = ComposeConfig.model_validate(spec_data)
     job = SlurmJob(**config.sbatch.model_dump(exclude_none=True, exclude={"completion"}))
     script = job.materialize()
-    assert "#SBATCH --account=research" in script
     assert "#SBATCH --job-name=evaluation" in script
-    assert "#SBATCH --begin=now" in script
     assert "#SBATCH --array=0-2" in script
-    assert "#SBATCH --comment=evaluation" in script
 
     for name, step in config.steps.items():
         if step.kwargs is None:
@@ -297,7 +315,7 @@ def test_sbatch_time_is_normalized(spec_data):
 
 
 def test_sbatch_argv_uses_equals_and_appends_extra_args(spec_data):
-    spec_data["sbatch"].update(requeue=True, account="research", extra_argv=["--comment=evaluation"])
+    spec_data["sbatch"].update(requeue=True, extra_argv=["--comment=evaluation"])
     config = ComposeConfig.model_validate(spec_data).sbatch
     assert config.argv == [
         "--nodes=1",
@@ -306,8 +324,6 @@ def test_sbatch_argv_uses_equals_and_appends_extra_args(spec_data):
         "--gpus-per-node=1",
         "--mem=32G",
         "--job-name=evaluation",
-        "--account=research",
-        "--partition=gpu",
         "--time=01:00:00",
         "--open-mode=append",
         "--requeue",

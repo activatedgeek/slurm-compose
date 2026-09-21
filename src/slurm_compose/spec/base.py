@@ -50,8 +50,16 @@ class StepKwargsConfig(BaseConfig):
                 args.append(f"{option}={value}")
         return args
 
-    def make_script(self, command: str | list[str]) -> str:
+    def script(self, command: str | list[str]) -> str:
+        """Render a command using the concrete script implementation."""
+        raise NotImplementedError
+
+
+class BashConfig(StepKwargsConfig):
+    """Render a command for direct execution by Bash."""
+
+    def script(self, command: str | list[str]) -> str:
         """Convert a shell string or exec-form argv to a renderable command."""
         if isinstance(command, str):
             return f"bash -l {shlex.quote(command)}"
-        return shlex.join(command)
+        return " ".join(command)

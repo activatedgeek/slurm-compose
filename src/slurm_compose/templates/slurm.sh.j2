@@ -2,13 +2,19 @@
 
 ##
 # Generated via Slurm Compose.
-# Config Hash: {{ config_hash[:8] }}
 #
 
 {% for arg in sbatch_argv %}
 #SBATCH {{ arg }}
 {% endfor %}
 #SBATCH --signal=B:USR1@10
+
+# DO NOT MODIFY: Slurm Compose metadata.
+SCOMPOSE_JOB_NAME={{ compose_job_name }}
+SCOMPOSE_JOB_HASH={{ compose_job_hash }}
+SCOMPOSE_JOB_HASH_SHORT="${SCOMPOSE_JOB_HASH:0:16}"
+SCOMPOSE_JOB_DIR={{ compose_job_dir }}
+# END DO NOT MODIFY: Slurm Compose metadata.
 
 ## Configuration Variables
 SBATCH_MAX_RESTARTS="${SBATCH_MAX_RESTARTS:-{{ max_restarts }}}"
