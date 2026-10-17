@@ -80,7 +80,10 @@ class SbatchJobConfig(BaseConfig):
                 yield {
                     "name": name,
                     "pid_key": shlex.quote(name),
-                    "parents": [shlex.quote(parent) for parent in rendered_step.depends_on],
+                    "parents": [
+                        {"name": shlex.quote(parent), "condition": dependency.condition}
+                        for parent, dependency in rendered_step.depends_on.items()
+                    ],
                     "environment": {key: shlex.quote(value) for key, value in rendered_step.environment.items()},
                     "scripts": rendered_step.scriptv,
                 }

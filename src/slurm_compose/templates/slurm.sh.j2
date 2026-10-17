@@ -71,7 +71,9 @@ declare -A step_pids=()
 # Step {{ loop.index0 }}: {{ step.name }}
 #
 {% for parent in step.parents %}
-wait "${step_pids[{{ parent }}]}"
+{% if parent.condition == "completed_successfully" %}
+wait "${step_pids[{{ parent.name }}]}"
+{% endif %}
 {% endfor %}
 {% for key, value in step.environment.items() %}
 export {{ key }}={{ value }}

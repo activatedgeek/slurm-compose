@@ -30,9 +30,6 @@ steps:
       cpus_per_task: 4
       gpus_per_node: 1
       mem: 24G
-    depends_on:
-      prepare:
-        condition: completed_successfully
   evaluate:
     command: "python /shared/project/evaluate.py"
     kwargs:
@@ -44,5 +41,7 @@ steps:
     environment:
       DATASET: /shared/data/evaluation
     depends_on:
-      model:
+      prepare:
         condition: completed_successfully
+      model:
+        condition: healthy

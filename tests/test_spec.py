@@ -106,6 +106,7 @@ def test_materialize_respects_topology_and_step_launchers(spec_data):
     assert "} & step_pids[prepare]=$!\n\n\n{\n##\n# Step 1: model" in script
     assert 'wait "${step_pids[prepare]}"' in script
     assert 'wait "${step_pids[evaluate]}"' in script
+    assert 'wait "${step_pids[prepare]}"' in script
     assert 'kill -TERM "$pid"' in script
 
 
@@ -117,6 +118,14 @@ def test_step_scriptv_and_srun_command_rendering(spec_data):
 
     model = config.steps["model"]
     assert model.scriptv[0].startswith("srun --nodes=1")
+
+
+def test_healthy_dependency_does_not_wait_for_parent(spec_data):
+    spec_data["steps"]["model"]["depends_on"]["prepare"]["condition"] = "healthy"
+    config = ComposeConfig.model_validate(spec_data)
+    script = SbatchJobConfig(compose=config).script()
+    assert 'wait "${step_pids[prepare]}"' not in script
+    assert 'wait "${step_pids[model]}"' in script
 
 
 @pytest.mark.parametrize("field", ["nodes", "ntasks_per_node", "cpus_per_task", "gpus_per_node"])
