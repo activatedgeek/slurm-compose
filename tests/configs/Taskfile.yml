@@ -8,6 +8,7 @@ tasks:
   prepare:
     desc: Run a prerequisite command
     cmds:
+      - echo "[$TASK_HASH] Running $TASK_NAME"
       - |
         bash <<'BASH'
         seconds=$((RANDOM % 3 + 1))
@@ -19,6 +20,7 @@ tasks:
     desc: Run multiple commands after preparation succeeds
     deps: [prepare]
     cmds:
+      - echo "[$TASK_HASH] Running $TASK_NAME"
       - |
         bash <<'BASH'
         seconds=$((RANDOM % 3 + 1))

@@ -32,4 +32,22 @@ Commands are intended to be finite; the model cannot establish whether a shell
 command will actually terminate. Task remains responsible for execution semantics,
 including parallel dependencies and sequential commands.
 
+Tasks also accept an scompose-specific `runner` specification:
+
+```yaml
+runner:
+  type: pyxis
+  kwargs:
+    nodes: 1
+    gpus_per_node: 1
+    container_image: /shared/model.sqsh
+```
+
+Supported runner types are `bash`, `srun`, and `pyxis`. An omitted runner defaults
+to Bash. Slurm resource arguments are optional; Pyxis requires `container_image`.
+`to_yaml()` applies each runner to its task's commands and removes runner metadata
+from the generated Taskfile. Bash passes commands through unchanged; srun and
+Pyxis transformations currently raise `NotImplementedError`. Explicit runner
+fields are an extension to the upstream Taskfile schema.
+
 Run the tests from the repository root with `python -m pytest tests/test_taskfile.py`.
