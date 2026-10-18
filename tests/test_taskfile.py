@@ -99,7 +99,12 @@ def test_hash_is_stable_and_ignores_generated_value():
     assert len(workflow.hash) == 64
     assert int(workflow.hash, 16) >= 0
     rendered = YAML(typ="safe").load(reordered.to_yaml())
-    assert rendered["env"] == {"DATASET": "test", "MODEL": "qwen3", "TASK_HASH": workflow.hash}
+    assert rendered["env"] == {
+        "DATASET": "test",
+        "MODEL": "qwen3",
+        "TASK_HASH": workflow.hash,
+        "TASK_DIR": str(Path.cwd()),
+    }
     assert "TASK_HASH" not in workflow.env
     assert reordered.env["TASK_HASH"] == "old-value"
 
@@ -119,6 +124,17 @@ def test_to_yaml_overrides_task_names_without_mutating_source():
     assert data["tasks"]["prepare"]["env"] == {"TASK_NAME": "prepare", "MODEL": "qwen3"}
     assert data["tasks"]["default"]["env"] == {"TASK_NAME": "default"}
     assert data["env"]["TASK_HASH"] == workflow.hash
+    assert workflow.model_dump() == original
+
+
+def test_task_dir_is_absolute_and_does_not_change_hash(tmp_path):
+    workflow = Taskfile(version="3", tasks={"default": {"cmds": ["echo hello"]}})
+    original = workflow.model_dump()
+    for directory in [tmp_path / "first", tmp_path / "second"]:
+        resolved = workflow.resolve(directory)
+        assert resolved.env["TASK_DIR"] == str(directory.resolve())
+        assert resolved.hash == workflow.hash
+        assert YAML(typ="safe").load(workflow.to_yaml(directory))["env"]["TASK_DIR"] == str(directory.resolve())
     assert workflow.model_dump() == original
 
 

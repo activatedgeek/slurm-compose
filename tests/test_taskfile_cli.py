@@ -67,7 +67,7 @@ def test_overwrite_generated_taskfile(monkeypatch, tmp_path, flags):
     @contextmanager
     def popen(args, **kwargs):
         started.append(True)
-        assert generated.read_text() == command.config.to_yaml()
+        assert generated.read_text() == command.config.to_yaml(tmp_path)
         yield SimpleNamespace(stdout=StringIO(), stderr=StringIO(), wait=lambda: 0)
 
     monkeypatch.setattr("slurm_compose.taskfile.task.subprocess.Popen", popen)
@@ -122,13 +122,14 @@ def test_execute_generated_taskfile(monkeypatch, capsys, tmp_path, returncode, s
         assert generated != path.resolve()
         data = YAML(typ="safe").load(generated.read_text())
         assert data["env"]["TASK_HASH"] == command.config.hash
+        assert data["env"]["TASK_DIR"] == str(generated.parent)
         for name, task in data["tasks"].items():
             assert task["env"]["TASK_NAME"] == name
             assert "runner" not in task
         exclude = {"tasks": {"__all__": {"runner"}}}
-        assert Taskfile.model_validate(data).model_dump(exclude=exclude) == command.config.resolve().model_dump(
-            exclude=exclude
-        )
+        assert Taskfile.model_validate(data).model_dump(exclude=exclude) == command.config.resolve(
+            generated.parent
+        ).model_dump(exclude=exclude)
         yield SimpleNamespace(
             stdout=StringIO("[bold]literal stdout[/bold]\nfinal line"),
             stderr=StringIO("literal stderr\n"),

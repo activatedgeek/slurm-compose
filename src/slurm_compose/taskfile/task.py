@@ -59,23 +59,24 @@ class Taskfile(TaskfileSpecModel):
         """Stable SHA-256 of configuration, excluding generated metadata."""
         data = self.model_dump(
             mode="json",
-            exclude={"env": {"TASK_HASH"}, "tasks": {"__all__": {"env": {"TASK_NAME"}}}},
+            exclude={"env": {"TASK_HASH", "TASK_DIR"}, "tasks": {"__all__": {"env": {"TASK_NAME"}}}},
         )
         payload = json.dumps(data, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
-    def resolve(self) -> Self:
+    def resolve(self, output_dir: str | Path = ".") -> Self:
         """Return a transformed copy with generated task metadata."""
         rendered = self.model_copy(deep=True)
         rendered.env["TASK_HASH"] = self.hash
+        rendered.env["TASK_DIR"] = str(Path(output_dir).resolve())
         for name, task in rendered.tasks.items():
             task.env["TASK_NAME"] = name
             task.cmds = task.runner(task.cmds)
         return rendered
 
-    def to_yaml(self) -> str:
+    def to_yaml(self, output_dir: str | Path = ".") -> str:
         """Serialize the rendered workflow as standard Taskfile YAML."""
-        data = self.resolve().model_dump(
+        data = self.resolve(output_dir).model_dump(
             mode="json",
             exclude_defaults=True,
             exclude={"tasks": {"__all__": {"runner"}}},
@@ -100,9 +101,8 @@ class Taskfile(TaskfileSpecModel):
 
         generated = Path(output_dir).resolve() / "Taskfile.yml"
         generated.parent.mkdir(parents=True, exist_ok=True)
-        yaml_text = self.to_yaml()
         with generated.open("w" if force else "x") as output:
-            output.write(yaml_text)
+            output.write(self.to_yaml(generated.parent))
 
         with subprocess.Popen(
             [
