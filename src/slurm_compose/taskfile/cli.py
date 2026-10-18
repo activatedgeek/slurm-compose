@@ -1,5 +1,6 @@
 """Validate and execute a generated Taskfile."""
 
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -19,13 +20,19 @@ class TaskCommand:
     taskfile: Annotated[Path, tyro.conf.arg(aliases=["-t"])]
     """Path to the Taskfile YAML document."""
 
+    output_dir: Annotated[Path | None, tyro.conf.arg(aliases=["-o"])] = None
+    """Directory for generated files. Defaults to an automatically cleaned temporary directory."""
+
+    force: Annotated[bool, tyro.conf.arg(aliases=["-f"])] = False
+    """Overwrite an existing generated Taskfile.yml in the output directory."""
+
     silent: Annotated[bool, tyro.conf.arg(aliases=["-s"])] = True
     """Hide command source while streaming command output."""
 
     raw: Annotated[bool, tyro.conf.arg(aliases=["-r"])] = False
     """Print subprocess output literally without Rich logging decorations."""
 
-    dump: bool = False
+    print_config: Annotated[bool, tyro.conf.arg(name="print")] = False
     """Print generated Taskfile YAML without executing it."""
 
     config: Taskfile = field(init=False)
@@ -36,13 +43,28 @@ class TaskCommand:
         self.config = Taskfile.model_validate(yaml.load(self.taskfile.read_text()))
 
     def __call__(self) -> int:
-        if self.dump:
+        if self.print_config:
             print(self.config.to_yaml(), end="")
             return 0
 
-        with TemporaryDirectory(prefix="stask-") as temporary:
+        with (
+            TemporaryDirectory(prefix="stask-") if self.output_dir is None else nullcontext(self.output_dir)
+        ) as output_dir:
+            if self.output_dir is None:
+                console.print(
+                    f"Warning: Using temporary output directory {Path(output_dir).resolve()}; "
+                    "it will be removed after execution.",
+                    style="yellow",
+                    markup=False,
+                    soft_wrap=True,
+                )
+
             with self.config.proc(
-                temporary, directory=self.taskfile.resolve().parent, silent=self.silent, raw=self.raw
+                output_dir,
+                directory=self.taskfile.resolve().parent,
+                silent=self.silent,
+                raw=self.raw,
+                force=self.force,
             ) as process:
                 returncode = process.wait()
 

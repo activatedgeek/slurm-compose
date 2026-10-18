@@ -9,7 +9,7 @@ with Task. See [the debug Taskfile](tests/configs/Taskfile.yml).
 
 ```bash
 uv run stask --taskfile tests/configs/Taskfile.yml
-uv run stask --dump --taskfile tests/configs/Taskfile.yml
+uv run stask --print --taskfile tests/configs/Taskfile.yml
 ```
 
 The legacy `slurm-compose` CLI continues to use the `jobs`/`steps` format.

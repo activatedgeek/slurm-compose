@@ -88,15 +88,22 @@ class Taskfile(TaskfileSpecModel):
 
     @contextmanager
     def proc(
-        self, output_dir: str | Path, *, directory: str | Path = ".", silent: bool = True, raw: bool = False
+        self,
+        output_dir: str | Path,
+        *,
+        directory: str | Path = ".",
+        silent: bool = True,
+        raw: bool = False,
+        force: bool = False,
     ) -> Iterator[subprocess.Popen[str]]:
-        """Write YAML in a caller-owned directory and stream Task output through Rich."""
+        """Write YAML in a caller-owned directory and stream task output."""
 
         generated = Path(output_dir).resolve() / "Taskfile.yml"
         generated.parent.mkdir(parents=True, exist_ok=True)
         yaml_text = self.to_yaml()
-        with generated.open("x") as output:
+        with generated.open("w" if force else "x") as output:
             output.write(yaml_text)
+
         with subprocess.Popen(
             [
                 "task",
@@ -111,7 +118,6 @@ class Taskfile(TaskfileSpecModel):
             stderr=subprocess.PIPE,
             text=True,
             errors="replace",
-            bufsize=1,
         ) as process:
             readers = [
                 Thread(target=stream_output, args=(process.stdout, output_console), kwargs={"raw": raw}),
