@@ -36,6 +36,10 @@ def test_to_yaml_round_trip():
     assert data["tasks"]["default"] == {
         "desc": "Run the simple debug workflow",
         "deps": ["debug"],
+        "sources": [str(Path.cwd() / "debug.done")],
+        "generates": [str(Path.cwd() / "default.done")],
+        "status": ['test -f "$TASK_DIR/$TASK_NAME.done"'],
+        "cmds": ['date +%s%N > "$TASK_DIR/$TASK_NAME.done"'],
         "env": {"TASK_NAME": "default"},
     }
 
@@ -66,13 +70,21 @@ def test_to_yaml_transforms_commands_without_mutating_source(monkeypatch):
     assert model is not workflow
     assert model.env["TASK_HASH"] == workflow.hash
     assert model.tasks["default"].env["TASK_NAME"] == "default"
-    assert model.tasks["default"].cmds == ["wrapped echo one", "wrapped echo two"]
+    assert model.tasks["default"].cmds == [
+        "wrapped echo one",
+        "wrapped echo two",
+        'date +%s%N > "$TASK_DIR/$TASK_NAME.done"',
+    ]
     assert workflow.model_dump() == original
     rendered = workflow.to_yaml()
     data = YAML(typ="safe").load(rendered)
 
-    assert data["tasks"]["prepare"]["cmds"] == ["wrapped echo prepare"]
-    assert data["tasks"]["default"]["cmds"] == ["wrapped echo one", "wrapped echo two"]
+    assert data["tasks"]["prepare"]["cmds"] == ["wrapped echo prepare", 'date +%s%N > "$TASK_DIR/$TASK_NAME.done"']
+    assert data["tasks"]["default"]["cmds"] == [
+        "wrapped echo one",
+        "wrapped echo two",
+        'date +%s%N > "$TASK_DIR/$TASK_NAME.done"',
+    ]
     assert data["tasks"]["default"]["deps"] == ["prepare"]
     assert data["tasks"]["default"]["env"] == {"MODEL": "qwen3", "TASK_NAME": "default"}
     assert all("runner" not in task for task in data["tasks"].values())
@@ -133,7 +145,7 @@ def test_task_dir_is_absolute_and_does_not_change_hash(tmp_path):
     for directory in [tmp_path / "first", tmp_path / "second"]:
         resolved = workflow.resolve(directory)
         assert resolved.env["TASK_DIR"] == str(directory.resolve())
-        assert resolved.hash == workflow.hash
+        assert resolved.env["TASK_HASH"] == workflow.hash
         assert YAML(typ="safe").load(workflow.to_yaml(directory))["env"]["TASK_DIR"] == str(directory.resolve())
     assert workflow.model_dump() == original
 

@@ -113,7 +113,7 @@ def test_execute_generated_taskfile(monkeypatch, capsys, tmp_path, returncode, s
 
     @contextmanager
     def popen(args, **kwargs):
-        prefix = ["task", *(["--silent"] if silent else []), "--exit-code", "--dir", str(path.resolve().parent)]
+        prefix = ["task", *(["--silent"] if silent else []), "--exit-code", "--dir", str(Path(args[-1]).parent)]
         assert args[:-2] == prefix
         assert args[-2] == "--taskfile"
         assert kwargs == {"stdout": PIPE, "stderr": PIPE, "text": True, "errors": "replace"}

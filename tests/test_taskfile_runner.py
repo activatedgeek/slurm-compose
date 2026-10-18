@@ -57,6 +57,7 @@ def test_srun_wraps_each_command_with_resources():
                 "--cpus-per-task=4",
                 "--gpus-per-node=0",
                 "--mem=8G",
+                "--open-mode=append",
                 "--exclusive",
                 "--comment=a job; $(echo literal)",
                 "bash",
@@ -67,7 +68,9 @@ def test_srun_wraps_each_command_with_resources():
         )
     assert cmds[0] == "echo one"
     assert SrunRunner()([]) == []
-    assert SrunRunner()(["echo hello"])[0] == ("srun bash -euo pipefail -s <<'TASK_SRUN'\necho hello\nTASK_SRUN\n")
+    assert SrunRunner()(["echo hello"])[0] == (
+        "srun --open-mode=append bash -euo pipefail -s <<'TASK_SRUN'\necho hello\nTASK_SRUN\n"
+    )
 
 
 @pytest.mark.parametrize(
@@ -111,9 +114,16 @@ def test_srun_executes_shell_syntax_and_preserves_failure(tmp_path, runner):
     # Also exercise Task's embedded shell as the heredoc producer.
     workflow = Taskfile(version="3", tasks={"default": Task(runner=runner, cmds=[cmds[0], cmds[9]])})
     generated = tmp_path / "Taskfile.yml"
-    generated.write_text(workflow.to_yaml())
+    generated.write_text(workflow.to_yaml(tmp_path))
     result = subprocess.run(
-        [str(Path(sys.executable).with_name("task")), "--silent", "--taskfile", str(generated)],
+        [
+            str(Path(sys.executable).with_name("task")),
+            "--silent",
+            "--dir",
+            str(tmp_path),
+            "--taskfile",
+            str(generated),
+        ],
         env=env,
         capture_output=True,
         text=True,
@@ -141,6 +151,7 @@ def test_pyxis_extends_srun_options(mount_home):
     assert runner.pre_cmd == [
         "srun",
         "--nodes=1",
+        "--open-mode=append",
         "--container-image=/shared/model image.sqsh",
         "--container-mounts=/shared/data:/data:ro,/shared/results:/results",
         "--container-workdir=/work dir",
