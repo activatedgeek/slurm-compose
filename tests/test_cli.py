@@ -5,8 +5,6 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from slurm_compose.cli import ConfigCommand, UpCommand
-from slurm_compose.config import STATE_HOME
 from slurm_compose.legacy_cli import CLIConfig
 
 
@@ -69,46 +67,3 @@ def test_cli_wait_exec(cli_wait_config: CLIConfig):
         assert fail_job_result.returncode == 1
         assert "TESTENV: testvalue" in fail_job_result.stdout
     assert "Finished Step" not in fail_job_result.stdout
-
-
-def test_new_cli_loads_compose_config():
-    command = ConfigCommand(file=Path(__file__).parent / "configs/spec.yml")
-    command()
-    config = command.compose
-    assert config.name == "evaluation"
-    assert config.directory == STATE_HOME
-
-
-def test_new_cli_overrides_compose_config():
-    cli_config = ConfigCommand(
-        file=Path(__file__).parent / "configs/spec.yml",
-        job_name="cli-evaluation",
-        jobs_dir=Path("/tmp/cli-evaluation"),
-    )
-    cli_config()
-    config = cli_config.compose
-    assert config.name == "cli-evaluation"
-    assert config.directory == Path("/tmp/cli-evaluation")
-
-
-def test_new_cli_overrides_compose_vars():
-    command = ConfigCommand(
-        file=Path(__file__).parent / "configs/spec.yml",
-        vars=["MODEL=llama", "NODES=2"],
-    )
-    assert command.compose.vars["MODEL"] == "llama"
-    assert command.compose.vars["NODES"] == 2
-    assert command.compose.steps["model"].command == ["/shared/project/start-model.sh", "--model", "llama"]
-
-
-def test_new_cli_up_stores_passthrough_arguments(capsys):
-    command = UpCommand(
-        file=Path(__file__).parent / "configs/spec.yml",
-        passthrough=["--partition=gpu", "--comment", "evaluation"],
-    )
-    assert command.passthrough == ["--partition=gpu", "--comment", "evaluation"]
-    command()
-    output = capsys.readouterr().out
-    assert "#!/usr/bin/env bash" in output
-    assert "#SBATCH --comment\n" not in output
-    assert "#SBATCH evaluation\n" not in output

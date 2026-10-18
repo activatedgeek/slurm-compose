@@ -2,72 +2,16 @@
 
 [![Lint](https://github.com/activatedgeek/slurm-compose/actions/workflows/prek.yml/badge.svg)](https://github.com/activatedgeek/slurm-compose/actions/workflows/prek.yml) [![Test](https://github.com/activatedgeek/slurm-compose/actions/workflows/pytest.yml/badge.svg)](https://github.com/activatedgeek/slurm-compose/actions/workflows/pytest.yml)
 
-## Starter specification
+## Taskfile workflow
 
-`slurm_compose.spec` defines the new, declarative configuration API. It is a
-standalone validation model; the existing CLI still uses the legacy `jobs`/`steps`
-format. See [the example specification](tests/configs/spec.yml).
+`stask` validates a limited Taskfile specification and executes a generated copy
+with Task. See [the debug Taskfile](tests/configs/Taskfile.yml).
 
-- `ComposeConfig` describes one job allocation, an optional shared metadata
-  `directory`, and a mapping of named `steps`. The top-level `name` is a plain
-  string, while `directory` is a path. `directory` is optional. If `name` is
-  omitted, it defaults to `SCOMPOSE_PROJECT_NAME`; validation fails when that
-  environment variable is also unset.
-- `sbatch` is a `SbatchConfig`: a flat block matching the sbatch argument fields of
-  the existing `SlurmJob`, including `extra_argv`. Script-level orchestration
-  settings are not sbatch options and do not belong in this block. The key is
-  optional; when omitted, the execution layer can interpret the steps as standard
-  Bash commands without explicit sbatch arguments.
-- `sbatch.job_name: ${{ vars.NAME }}` explicitly references a top-level variable,
-  as shown in the example. Use `${{ vars.NAME }}` for all substitutions. References
-  are resolved recursively in every string, including embedded references such
-  as `/models/${{ vars.MODEL }}`. A whole-value reference preserves scalar types,
-  so `${{ vars.NODES }}` can populate an integer field. Other namespaces are
-  rejected.
-- Each entry in `steps` is a `StepConfig`. Its optional nested `kwargs` block is an
-  `SrunConfig` or `PyxisConfig`, matching the arguments of `SrunScript` and
-  `PyxisScript`. Container settings use `container_image`, `container_mounts`,
-  `container_workdir`, and `container_mount_home` inside `kwargs`.
-- A missing `kwargs` block is a shell step. Otherwise, the concrete `kwargs`
-  class determines the launcher: `SrunConfig` or its `PyxisConfig` subclass.
-  Pyxis remains distinguishable by its concrete class and container fields. An
-  empty `kwargs: {}` is invalid because it still requires
-  explicit resources. User scripts own multinode coordination.
-- The optional `type` field is reserved for custom `SrunConfig` subclasses. It
-  accepts a fully qualified class name in the same format as
-  `pkgutil.resolve_name`, for example `my_package.launchers:CustomSrunConfig`.
-- Dependencies use `completed_successfully` startup gates.
-- `sbatch.completion` defaults to `mode: any`. Use `mode: all` to wait for
-  all steps, or `mode: step` with a named `step` to finish when that step
-  exits and stop supporting steps. Launcher
-  class describes execution, not whether a command is finite or long-running.
-- `command` follows Docker Compose's two forms: a string is shell form, while a
-  list of strings is exec form. For example, `command: "python evaluate.py"`
-  or `command: ["python", "evaluate.py"]`. Empty commands and NUL characters
-  are rejected. Environment values are strings.
-- Resource fields are required in `sbatch` and every `kwargs` block. There is no
-  automatic sizing or resource inheritance.
-
-Load YAML with `ruamel.yaml`, then validate with Pydantic:
-
-```python
-from pathlib import Path
-
-from ruamel.yaml import YAML
-from slurm_compose.spec import ComposeConfig
-
-yaml = YAML(typ="safe")
-yaml.allow_duplicate_keys = False
-config = ComposeConfig.model_validate(yaml.load(Path("compose.slurm.yaml").read_text()))
-
-json_text = config.model_dump_json(indent=2)
-yaml_data = config.model_dump(mode="json", exclude_none=True)
-json_schema = ComposeConfig.model_json_schema()
+```bash
+uv run stask --taskfile tests/configs/Taskfile.yml
 ```
 
-Unknown fields, missing resources, invalid dependency references, dependency
-cycles, and invalid completion targets are rejected. Substitution, retries, and
-runtime supervision will be added separately.
+The legacy `slurm-compose` CLI continues to use the `jobs`/`steps` format.
 
 ## License
 
