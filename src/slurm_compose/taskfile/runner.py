@@ -1,6 +1,7 @@
 """Runner specifications and command transformation interfaces."""
 
 import shlex
+from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -14,6 +15,9 @@ class Runner(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     type: str
+
+    def apply_defaults(self, task_name: str, task_dir: Path):
+        """Apply defaults that depend on the task's name or output directory."""
 
     def __call__(self, cmds: list[str]) -> list[str]:
         """Transform a list of shell commands for this runner."""
@@ -50,8 +54,14 @@ class SrunRunner(Runner):
     """Launch a command as a Slurm job step."""
 
     delimiter: ClassVar[str] = "TASK_SRUN"
+    output_template: ClassVar[str] = "%x.log"
     type: Literal["srun"] = "srun"
     kwargs: SrunKwargs = Field(default_factory=SrunKwargs)
+
+    def apply_defaults(self, task_name: str, task_dir: Path):
+        """Fill in Slurm options derived from this task's identity and directory."""
+        self.kwargs.job_name = self.kwargs.job_name or task_name
+        self.kwargs.output = self.kwargs.output or str(task_dir / self.output_template)
 
     @property
     def pre_cmd(self) -> list[str]:

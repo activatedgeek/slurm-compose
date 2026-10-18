@@ -19,6 +19,7 @@ def test_default_runner_is_bash():
 def test_bash_returns_commands_unchanged():
     cmds = ["echo hello", "echo world"]
     assert BashRunner()(cmds) is cmds
+    assert BashRunner().apply_defaults("train", Path("/tmp/run")) is None
 
 
 @pytest.mark.parametrize(
@@ -184,6 +185,38 @@ def test_runner_selection_and_round_trip(runner, expected):
     workflow = Taskfile.model_validate({"version": "3", "tasks": {"default": {"runner": runner}}})
     assert isinstance(workflow.tasks["default"].runner, expected)
     assert Taskfile.model_validate_json(workflow.model_dump_json()) == workflow
+
+
+@pytest.mark.parametrize(
+    "runner",
+    [
+        SrunRunner(),
+        PyxisRunner(kwargs=PyxisKwargs(container_image="model.sqsh")),
+    ],
+)
+def test_taskfile_applies_srun_defaults_through_runner(tmp_path, runner):
+    workflow = Taskfile(
+        version="3",
+        tasks={"default": Task(deps=["train"]), "train": Task(runner=runner)},
+    )
+
+    resolved = workflow.resolve(tmp_path)
+
+    assert resolved.tasks["train"].runner.kwargs.job_name == "train"
+    assert resolved.tasks["train"].runner.kwargs.output == str(tmp_path.resolve() / "%x.log")
+
+
+def test_taskfile_preserves_explicit_srun_defaults(tmp_path):
+    runner = SrunRunner(kwargs=SrunKwargs(job_name="custom", output="custom.log"))
+    workflow = Taskfile(
+        version="3",
+        tasks={"default": Task(deps=["train"]), "train": Task(runner=runner)},
+    )
+
+    resolved = workflow.resolve(tmp_path)
+
+    assert resolved.tasks["train"].runner.kwargs.job_name == "custom"
+    assert resolved.tasks["train"].runner.kwargs.output == "custom.log"
 
 
 @pytest.mark.parametrize(

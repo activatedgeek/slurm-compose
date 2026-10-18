@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 from ruamel.yaml import YAML
 
 from .logging import console, output_console, stream_output
-from .runner import BashRunner, RunnerConfig, SrunRunner
+from .runner import BashRunner, RunnerConfig
 
 NonEmptyString = Annotated[str, StringConstraints(min_length=1, pattern=r"\S")]
 Scalar = str | int | float | bool
@@ -76,10 +76,7 @@ class Taskfile(TaskfileSpecModel):
         rendered.env["TASK_DIR"] = str(task_dir)
         for name, task in rendered.tasks.items():
             task.env["TASK_NAME"] = name
-
-            if isinstance(task.runner, SrunRunner):
-                task.runner.kwargs.job_name = task.runner.kwargs.job_name or name
-                task.runner.kwargs.output = task.runner.kwargs.output or str(task_dir / "%x.log")
+            task.runner.apply_defaults(name, task_dir)
             task.cmds = task.runner(task.cmds)
             task.cmds.append('date +%s%N > "$TASK_DIR/$TASK_NAME.done"')
 
