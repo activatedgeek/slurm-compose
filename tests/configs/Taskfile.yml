@@ -7,14 +7,20 @@ tasks:
 
   prepare:
     desc: Run a prerequisite command
+    # runner:
+    #   type: srun
+    #   kwargs:
+    #     nodes: 1
+    #     ntasks_per_node: 1
+    #     cpus_per_task: 2
+    #     gpus_per_node: 0
+    #     mem: 2G
     cmds:
       - echo "[$TASK_HASH] Running $TASK_NAME"
       - |
-        bash <<'BASH'
         seconds=$((RANDOM % 3 + 1))
         echo "Preparing the debug workflow (${seconds}s)"
         sleep "$seconds"
-        BASH
 
   debug:
     desc: Run multiple commands after preparation succeeds

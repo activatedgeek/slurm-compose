@@ -1,6 +1,7 @@
 """Runner specifications and command transformation interfaces."""
 
-from typing import Annotated, Literal
+import shlex
+from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -45,8 +46,38 @@ class SrunKwargs(BaseModel):
 class SrunRunner(Runner):
     """Launch a command as a Slurm job step."""
 
+    delimiter: ClassVar[str] = "TASK_SRUN"
     type: Literal["srun"] = "srun"
     kwargs: SrunKwargs = Field(default_factory=SrunKwargs)
+
+    @property
+    def pre_cmd(self) -> list[str]:
+        """Build the launcher and Bash prefix as individual arguments."""
+        options = []
+        for name, value in self.kwargs.model_dump(exclude_none=True, exclude={"extra_argv"}).items():
+            option = name.replace("_", "-")
+            if isinstance(value, bool):
+                options.append(f"--{option}" if value else f"--no-{option}")
+            elif isinstance(value, list):
+                if value:
+                    options.append(f"--{option}={','.join(value)}")
+            else:
+                options.append(f"--{option}={value}")
+        return ["srun", *options, *self.kwargs.extra_argv, "bash", "-euo", "pipefail", "-s"]
+
+    def __call__(self, cmds: list[str]) -> list[str]:
+        """Wrap each complete shell command in a separate synchronous Slurm step."""
+        transformed = []
+        for cmd in cmds:
+            delimiter = self.delimiter
+            suffix = 0
+            lines = set(cmd.splitlines())
+            while delimiter in lines:
+                suffix += 1
+                delimiter = f"{self.delimiter}_{suffix}"
+            body = cmd if cmd.endswith("\n") else cmd + "\n"
+            transformed.append(f"{shlex.join(self.pre_cmd)} <<'{delimiter}'\n{body}{delimiter}\n")
+        return transformed
 
 
 class PyxisKwargs(SrunKwargs):
@@ -58,11 +89,12 @@ class PyxisKwargs(SrunKwargs):
     container_mount_home: bool = False
 
 
-class PyxisRunner(Runner):
+class PyxisRunner(SrunRunner):
     """Launch a containerized Slurm job step through Pyxis."""
 
+    delimiter: ClassVar[str] = "TASK_PYXIS"
     type: Literal["pyxis"] = "pyxis"
-    kwargs: PyxisKwargs
+    kwargs: PyxisKwargs = Field(...)
 
 
 RunnerConfig = Annotated[BashRunner | SrunRunner | PyxisRunner, Field(discriminator="type")]

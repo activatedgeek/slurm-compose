@@ -84,10 +84,14 @@ def test_execute_generated_taskfile(monkeypatch, capsys, returncode, silent, raw
         generated_paths.append(generated)
         assert generated != path.resolve()
         data = YAML(typ="safe").load(generated.read_text())
-        assert data["env"].pop("TASK_HASH") == command.config.hash
+        assert data["env"]["TASK_HASH"] == command.config.hash
         for name, task in data["tasks"].items():
-            assert task["env"].pop("TASK_NAME") == name
-        assert Taskfile.model_validate(data) == command.config
+            assert task["env"]["TASK_NAME"] == name
+            assert "runner" not in task
+        exclude = {"tasks": {"__all__": {"runner"}}}
+        assert Taskfile.model_validate(data).model_dump(exclude=exclude) == command.config.resolve().model_dump(
+            exclude=exclude
+        )
         yield SimpleNamespace(
             stdout=StringIO("[bold]literal stdout[/bold]\nfinal line"),
             stderr=StringIO("literal stderr\n"),

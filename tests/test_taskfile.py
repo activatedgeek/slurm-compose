@@ -24,17 +24,19 @@ def test_to_yaml_round_trip():
 
     data = YAML(typ="safe").load(workflow.to_yaml())
 
-    assert data["env"].pop("TASK_HASH") == workflow.hash
+    assert data["env"]["TASK_HASH"] == workflow.hash
     for name, task in data["tasks"].items():
-        assert task["env"].pop("TASK_NAME") == name
-    assert Taskfile.model_validate(data) == workflow
+        assert task["env"]["TASK_NAME"] == name
+        assert "runner" not in task
+    exclude = {"tasks": {"__all__": {"runner"}}}
+    assert Taskfile.model_validate(data).model_dump(exclude=exclude) == workflow.resolve().model_dump(exclude=exclude)
     assert data["version"] == "3"
     assert "dir" not in data["tasks"]["debug"]
     assert "vars" not in data
     assert data["tasks"]["default"] == {
         "desc": "Run the simple debug workflow",
         "deps": ["debug"],
-        "env": {},
+        "env": {"TASK_NAME": "default"},
     }
 
 
@@ -44,7 +46,7 @@ def test_to_yaml_transforms_commands_without_mutating_source(monkeypatch):
             "version": "3",
             "tasks": {
                 "prepare": {"cmds": ["echo prepare"]},
-                "run": {
+                "default": {
                     "deps": ["prepare"],
                     "runner": {"type": "bash"},
                     "env": {"MODEL": "qwen3"},
@@ -63,16 +65,16 @@ def test_to_yaml_transforms_commands_without_mutating_source(monkeypatch):
     model = workflow.resolve()
     assert model is not workflow
     assert model.env["TASK_HASH"] == workflow.hash
-    assert model.tasks["run"].env["TASK_NAME"] == "run"
-    assert model.tasks["run"].cmds == ["wrapped echo one", "wrapped echo two"]
+    assert model.tasks["default"].env["TASK_NAME"] == "default"
+    assert model.tasks["default"].cmds == ["wrapped echo one", "wrapped echo two"]
     assert workflow.model_dump() == original
     rendered = workflow.to_yaml()
     data = YAML(typ="safe").load(rendered)
 
     assert data["tasks"]["prepare"]["cmds"] == ["wrapped echo prepare"]
-    assert data["tasks"]["run"]["cmds"] == ["wrapped echo one", "wrapped echo two"]
-    assert data["tasks"]["run"]["deps"] == ["prepare"]
-    assert data["tasks"]["run"]["env"] == {"MODEL": "qwen3", "TASK_NAME": "run"}
+    assert data["tasks"]["default"]["cmds"] == ["wrapped echo one", "wrapped echo two"]
+    assert data["tasks"]["default"]["deps"] == ["prepare"]
+    assert data["tasks"]["default"]["env"] == {"MODEL": "qwen3", "TASK_NAME": "default"}
     assert all("runner" not in task for task in data["tasks"].values())
     assert workflow.model_dump() == original
     assert workflow.to_yaml() == rendered
@@ -83,12 +85,12 @@ def test_hash_is_stable_and_ignores_generated_value():
         {
             "version": "3",
             "env": {"MODEL": "qwen3", "DATASET": "test"},
-            "tasks": {"run": {"cmds": ["echo hello"]}},
+            "tasks": {"default": {"cmds": ["echo hello"]}},
         }
     )
     reordered = Taskfile.model_validate(
         {
-            "tasks": {"run": {"cmds": ["echo hello"], "runner": {"type": "bash"}}},
+            "tasks": {"default": {"cmds": ["echo hello"], "runner": {"type": "bash"}}},
             "env": {"DATASET": "test", "MODEL": "qwen3", "TASK_HASH": "old-value"},
             "version": "3",
         }
@@ -122,33 +124,36 @@ def test_to_yaml_overrides_task_names_without_mutating_source():
 
 @pytest.mark.parametrize("change", ["commands", "environment", "runner"])
 def test_hash_changes_with_configuration(change):
-    workflow = Taskfile.model_validate({"version": "3", "tasks": {"run": {"cmds": ["echo hello"]}}})
+    workflow = Taskfile.model_validate({"version": "3", "tasks": {"default": {"cmds": ["echo hello"]}}})
     previous = workflow.hash
     if change == "commands":
-        workflow.tasks["run"].cmds.append("echo world")
+        workflow.tasks["default"].cmds.append("echo world")
     elif change == "environment":
         workflow.env["MODEL"] = "qwen3"
     else:
-        workflow.tasks["run"].runner = SrunRunner()
+        workflow.tasks["default"].runner = SrunRunner()
     assert workflow.hash != previous
 
 
 @pytest.mark.parametrize(
     "runner",
     [
-        {"type": "srun"},
         {"type": "pyxis", "kwargs": {"container_image": "model.sqsh"}},
     ],
 )
-def test_to_yaml_rejects_unimplemented_runners(runner):
+def test_to_yaml_supports_pyxis_runner(runner):
     workflow = Taskfile.model_validate(
         {
             "version": "3",
-            "tasks": {"run": {"runner": runner, "cmds": ["echo hello"]}},
+            "tasks": {"default": {"runner": runner, "cmds": ["echo hello"]}},
         }
     )
-    with pytest.raises(NotImplementedError):
-        workflow.to_yaml()
+    data = YAML(typ="safe").load(workflow.to_yaml())
+    command = data["tasks"]["default"]["cmds"][0]
+    assert command.startswith("srun ")
+    assert "--container-image=model.sqsh" in command
+    assert "--no-container-mount-home" in command
+    assert "runner" not in data["tasks"]["default"]
 
 
 def test_finite_workflow_preserves_templates_and_explicit_fields():
@@ -163,7 +168,7 @@ def test_finite_workflow_preserves_templates_and_explicit_fields():
                 "env": {"MODEL": "{{.MODEL}}"},
                 "cmds": ["python train.py", "python export.py"],
             },
-            "all": {"deps": ["train"]},
+            "default": {"deps": ["train"]},
         },
     }
     workflow = Taskfile.model_validate(data)
@@ -187,4 +192,9 @@ def test_finite_workflow_preserves_templates_and_explicit_fields():
 )
 def test_rejects_invalid_or_unsupported_tasks(tasks):
     with pytest.raises(ValidationError):
-        Taskfile.model_validate({"version": "3", "tasks": tasks})
+        Taskfile.model_validate({"version": "3", "tasks": {"default": {}, **tasks} if tasks else tasks})
+
+
+def test_requires_default_task():
+    with pytest.raises(ValidationError, match="must contain a 'default' task"):
+        Taskfile.model_validate({"version": "3", "tasks": {"prepare": {"cmds": ["echo hello"]}}})

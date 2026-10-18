@@ -17,7 +17,7 @@ workflow = Taskfile.model_validate({
             "env": {"MODEL": "qwen3"},
             "cmds": ["python train.py"],
         },
-        "all": {"deps": ["train"]},
+        "default": {"deps": ["train"]},
     },
 })
 
@@ -27,7 +27,8 @@ data = workflow.model_dump(exclude_unset=True)
 Supported fields are `version`, `tasks`, global and task-level scalar `vars`,
 string-valued `env`, and task-level `desc`, `dir`, `cmds`, and `deps`.
 Only full task mappings, shell command strings, and dependency names are supported.
-Unknown fields, missing dependencies, and dependency cycles are rejected.
+A task named `default` is required. Unknown fields, missing dependencies, and
+dependency cycles are rejected.
 Commands are intended to be finite; the model cannot establish whether a shell
 command will actually terminate. Task remains responsible for execution semantics,
 including parallel dependencies and sequential commands.
@@ -46,8 +47,12 @@ runner:
 Supported runner types are `bash`, `srun`, and `pyxis`. An omitted runner defaults
 to Bash. Slurm resource arguments are optional; Pyxis requires `container_image`.
 `to_yaml()` applies each runner to its task's commands and removes runner metadata
-from the generated Taskfile. Bash passes commands through unchanged; srun and
-Pyxis transformations currently raise `NotImplementedError`. Explicit runner
+from the generated Taskfile. Bash passes commands through unchanged. The srun
+runner feeds each command through a quoted heredoc to a separate
+`srun ... bash -euo pipefail -s` invocation. Commands must be noninteractive;
+stdin carries the script. Commands remain sequential within a task;
+combine related work in one multiline command to run it in one Slurm step.
+Pyxis uses the same transform with additional container flags. Explicit runner
 fields are an extension to the upstream Taskfile schema.
 
 Run the tests from the repository root with `python -m pytest tests/test_taskfile.py`.

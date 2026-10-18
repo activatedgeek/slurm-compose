@@ -128,6 +128,8 @@ class Taskfile(TaskfileSpecModel):
 
     @model_validator(mode="after")
     def validate_dependencies(self) -> Self:
+        if "default" not in self.tasks:
+            raise ValueError("Taskfile must contain a 'default' task")
         for name, task in self.tasks.items():
             for dependency in task.deps:
                 if dependency not in self.tasks:
