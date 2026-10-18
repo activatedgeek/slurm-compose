@@ -115,7 +115,7 @@ def test_srun_executes_shell_syntax_and_preserves_failure(tmp_path, runner):
     # Also exercise Task's embedded shell as the heredoc producer.
     workflow = Taskfile(version="3", tasks={"default": Task(runner=runner, cmds=[cmds[0], cmds[9]])})
     generated = tmp_path / "Taskfile.yml"
-    generated.write_text(workflow.to_yaml(tmp_path))
+    workflow.to_yaml(tmp_path)
     result = subprocess.run(
         [
             str(Path(sys.executable).with_name("task")),

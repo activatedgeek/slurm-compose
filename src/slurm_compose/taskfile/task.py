@@ -86,9 +86,15 @@ class Taskfile(TaskfileSpecModel):
 
         return rendered
 
-    def to_yaml(self, output_dir: str | Path = ".") -> str:
-        """Serialize the rendered workflow as standard Taskfile YAML."""
-        data = self.resolve(output_dir).model_dump(
+    def to_yaml(
+        self,
+        output_dir: str | Path | None = None,
+        *,
+        force: bool = False,
+    ) -> str:
+        """Serialize the workflow, writing ``Taskfile.yml`` when output_dir is provided."""
+        render_dir = output_dir if output_dir is not None else "."
+        data = self.resolve(render_dir).model_dump(
             mode="json",
             exclude_defaults=True,
             exclude={"tasks": {"__all__": {"runner"}}},
@@ -97,7 +103,23 @@ class Taskfile(TaskfileSpecModel):
         yaml = YAML()
         yaml.default_flow_style = False
         yaml.dump(data, output)
-        return output.getvalue()
+        taskfile_yaml = output.getvalue()
+
+        if output_dir is not None:
+            generated = Path(output_dir).resolve() / "Taskfile.yml"
+            generated.parent.mkdir(parents=True, exist_ok=True)
+            if generated.exists():
+                if generated.read_text() != taskfile_yaml:
+                    if not force:
+                        raise FileExistsError(
+                            f"Generated Taskfile {generated} already exists with different contents; use --force to replace it"
+                        )
+                    generated.write_text(taskfile_yaml)
+            else:
+                with generated.open("x") as output_file:
+                    output_file.write(taskfile_yaml)
+
+        return taskfile_yaml
 
     @contextmanager
     def proc(
@@ -111,18 +133,7 @@ class Taskfile(TaskfileSpecModel):
         """Write YAML in a caller-owned directory and stream task output."""
 
         generated = Path(output_dir).resolve() / "Taskfile.yml"
-        generated.parent.mkdir(parents=True, exist_ok=True)
-        taskfile_yaml = self.to_yaml(generated.parent)
-        if generated.exists():
-            if generated.read_text() != taskfile_yaml:
-                if not force:
-                    raise FileExistsError(
-                        f"Generated Taskfile {generated} already exists with different contents; use --force to replace it"
-                    )
-                generated.write_text(taskfile_yaml)
-        else:
-            with generated.open("x") as output:
-                output.write(taskfile_yaml)
+        self.to_yaml(generated.parent, force=force)
 
         with subprocess.Popen(
             [

@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+
+##
+# Generated via slurm-compose.
+#
+
+{% for arg in sbatch_argv %}
+#SBATCH {{ arg }}
+{% endfor %}
+#SBATCH --signal=B:USR1@10
+
+set -euo pipefail
+
+maybe_sbatch_requeue() {
+    local exit_code=$1
+    local max_restarts=${STASK_MAX_RESTARTS:-0}
+    local event=${SLURM_EVENT:-}
+
+    case "$event" in
+        EXIT)
+            echo "[ERROR] Non-zero exit code (${exit_code}) detected." >&2
+            ;;
+        TIMEOUT)
+            echo "[WARNING] Job approaching time limit." >&2
+            ;;
+    esac
+
+    if [[ -n "${SLURM_JOB_ID:-}" ]] && (( max_restarts > 0 )); then
+        local restarts=${SLURM_RESTART_COUNT:-0}
+
+        if (( restarts < max_restarts )); then
+            local requeue_job_id=${SLURM_JOB_ID}
+            if [[ -n "${SLURM_ARRAY_JOB_ID:-}" && -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+                requeue_job_id="${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+            fi
+
+            echo "[INFO] Requeueing job ${requeue_job_id} (attempt $((restarts + 1))/${max_restarts})" >&2
+            if ! scontrol requeue "${requeue_job_id}"; then
+                echo "[ERROR] Failed to requeue job ${requeue_job_id}." >&2
+            fi
+        else
+            echo "[ERROR] Max restarts (${max_restarts}) reached." >&2
+        fi
+    fi
+
+    return "${exit_code}"
+}
+
+if [[ -n "${SLURM_JOB_ID:-}" ]]; then
+    trap 'trap - USR1; SLURM_EVENT=TIMEOUT; maybe_sbatch_requeue 124 || exit 124' USR1
+fi
+
+taskfile="{{ taskfile }}"
+taskfile_dir="$(cd -- "$(dirname -- "$taskfile")" && pwd)"
+if task --silent --exit-code --dir "$taskfile_dir" --taskfile "$taskfile"; then
+    exit 0
+else
+    exit_code=$?
+    SLURM_EVENT=EXIT
+    maybe_sbatch_requeue "$exit_code" || exit "$exit_code"
+fi

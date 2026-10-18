@@ -150,6 +150,22 @@ def test_task_dir_is_absolute_and_does_not_change_hash(tmp_path):
     assert workflow.model_dump() == original
 
 
+def test_to_yaml_writes_when_output_dir_is_provided(tmp_path):
+    workflow = Taskfile(version="3", tasks={"default": {"cmds": ["echo hello"]}})
+    generated = tmp_path / "Taskfile.yml"
+
+    rendered = workflow.to_yaml(tmp_path)
+    assert generated.read_text() == rendered
+    assert workflow.to_yaml(tmp_path) == rendered
+
+    workflow.tasks["default"].cmds = ["echo changed"]
+    with pytest.raises(FileExistsError, match="use --force"):
+        workflow.to_yaml(tmp_path)
+
+    rendered = workflow.to_yaml(tmp_path, force=True)
+    assert generated.read_text() == rendered
+
+
 @pytest.mark.parametrize("change", ["commands", "environment", "runner"])
 def test_hash_changes_with_configuration(change):
     workflow = Taskfile.model_validate({"version": "3", "tasks": {"default": {"cmds": ["echo hello"]}}})

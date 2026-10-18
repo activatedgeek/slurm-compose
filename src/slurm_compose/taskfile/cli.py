@@ -44,7 +44,7 @@ class TaskCommand:
 
     def __call__(self) -> int:
         if self.print_config:
-            print(self.config.to_yaml(self.output_dir or Path.cwd()), end="")
+            print(self.config.to_yaml(), end="")
             return 0
 
         with (
