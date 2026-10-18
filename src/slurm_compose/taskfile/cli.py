@@ -24,7 +24,7 @@ class TaskCommand:
     """Directory for generated files. Defaults to an automatically cleaned temporary directory."""
 
     force: Annotated[bool, tyro.conf.arg(aliases=["-f"])] = False
-    """Overwrite an existing generated Taskfile.yml in the output directory."""
+    """Overwrite the generated Taskfile.yml and force Task to rerun tasks."""
 
     silent: Annotated[bool, tyro.conf.arg(aliases=["-s"])] = True
     """Hide command source while streaming command output."""
@@ -61,7 +61,6 @@ class TaskCommand:
 
             with self.config.proc(
                 output_dir,
-                directory=self.taskfile.resolve().parent,
                 silent=self.silent,
                 raw=self.raw,
                 force=self.force,

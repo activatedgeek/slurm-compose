@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 from ruamel.yaml import YAML
 
 from .logging import console, output_console, stream_output
-from .runner import BashRunner, RunnerConfig
+from .runner import BashRunner, RunnerConfig, SrunRunner
 
 NonEmptyString = Annotated[str, StringConstraints(min_length=1, pattern=r"\S")]
 Scalar = str | int | float | bool
@@ -37,6 +37,9 @@ class Task(TaskfileSpecModel):
     desc: str | None = None
     cmds: list[NonEmptyString] = Field(default_factory=list)
     deps: list[NonEmptyString] = Field(default_factory=list)
+    sources: list[NonEmptyString] = Field(default_factory=list)
+    generates: list[NonEmptyString] = Field(default_factory=list)
+    status: list[NonEmptyString] = Field(default_factory=list)
     vars: dict[str, Scalar] = Field(default_factory=dict)
     env: dict[str, str] = Field(default_factory=dict)
     dir: NonEmptyString | None = None
@@ -66,12 +69,24 @@ class Taskfile(TaskfileSpecModel):
 
     def resolve(self, output_dir: str | Path = ".") -> Self:
         """Return a transformed copy with generated task metadata."""
+        task_dir = Path(output_dir).resolve()
+
         rendered = self.model_copy(deep=True)
         rendered.env["TASK_HASH"] = self.hash
-        rendered.env["TASK_DIR"] = str(Path(output_dir).resolve())
+        rendered.env["TASK_DIR"] = str(task_dir)
         for name, task in rendered.tasks.items():
             task.env["TASK_NAME"] = name
+
+            if isinstance(task.runner, SrunRunner):
+                task.runner.kwargs.job_name = task.runner.kwargs.job_name or name
+                task.runner.kwargs.output = task.runner.kwargs.output or str(task_dir / "%x.log")
             task.cmds = task.runner(task.cmds)
+            task.cmds.append('date +%s%N > "$TASK_DIR/$TASK_NAME.done"')
+
+            task.sources.extend(str(task_dir / f"{dependency}.done") for dependency in task.deps)
+            task.generates.append(str(task_dir / f"{name}.done"))
+            task.status.append('test -f "$TASK_DIR/$TASK_NAME.done"')
+
         return rendered
 
     def to_yaml(self, output_dir: str | Path = ".") -> str:
@@ -92,7 +107,6 @@ class Taskfile(TaskfileSpecModel):
         self,
         output_dir: str | Path,
         *,
-        directory: str | Path = ".",
         silent: bool = True,
         raw: bool = False,
         force: bool = False,
@@ -101,16 +115,26 @@ class Taskfile(TaskfileSpecModel):
 
         generated = Path(output_dir).resolve() / "Taskfile.yml"
         generated.parent.mkdir(parents=True, exist_ok=True)
-        with generated.open("w" if force else "x") as output:
-            output.write(self.to_yaml(generated.parent))
+        taskfile_yaml = self.to_yaml(generated.parent)
+        if generated.exists():
+            if generated.read_text() != taskfile_yaml:
+                if not force:
+                    raise FileExistsError(
+                        f"Generated Taskfile {generated} already exists with different contents; use --force to replace it"
+                    )
+                generated.write_text(taskfile_yaml)
+        else:
+            with generated.open("x") as output:
+                output.write(taskfile_yaml)
 
         with subprocess.Popen(
             [
                 "task",
                 *(["--silent"] if silent else []),
+                *(["--force"] if force else []),
                 "--exit-code",
                 "--dir",
-                str(Path(directory).resolve()),
+                str(generated.parent),
                 "--taskfile",
                 str(generated),
             ],

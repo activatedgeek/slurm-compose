@@ -40,6 +40,9 @@ class SrunKwargs(BaseModel):
     cpus_per_task: int | None = Field(default=None, gt=0)
     gpus_per_node: int | None = Field(default=None, ge=0)
     mem: NonEmptyString | None = None
+    job_name: NonEmptyString | None = None
+    output: NonEmptyString | None = None
+    open_mode: Literal["append", "truncate"] = "append"
     extra_argv: list[NonEmptyString] = Field(default_factory=list)
 
 
