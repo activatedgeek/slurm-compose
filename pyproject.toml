@@ -14,6 +14,7 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
     "fsspec",
+    "go-task-bin>=3.54.0",
     "Jinja2",
     "paramiko",
     "pathspec",
@@ -21,12 +22,12 @@ dependencies = [
     "pytimeparse",
     "rich",
     "ruamel.yaml",
-    "tyro"
+    "tyro",
 ]
 optional-dependencies.test = ["prek", "pytest"]
 
 scripts.slurm-compose = "slurm_compose.legacy_cli:main"
-scripts.scompose = "slurm_compose.cli:main"
+scripts.stask = "slurm_compose.taskfile.cli:main"
 
 [project.entry-points."slurm_compose.scripts"]
 core = "slurm_compose.plugins.utils:register_core_script_plugins"
@@ -43,8 +44,8 @@ packages.find.where = ["src"]
 [tool.setuptools.package-data]
 "slurm_compose.api.scripts" = ["**/*.sh"]
 "slurm_compose.api.templates" = ["**/*.j2"]
+"slurm_compose" = ["templates/*.j2"]
 "slurm_compose.api" = ["**/*.scignore"]
-"slurm_compose" = ["templates/**/*.j2"]
 
 [tool.ruff]
 target-version = "py311"
