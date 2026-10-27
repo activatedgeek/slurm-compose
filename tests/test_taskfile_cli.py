@@ -62,6 +62,7 @@ def test_overwrite_generated_taskfile(monkeypatch, tmp_path, flags):
     generated = tmp_path / "Taskfile.yml"
     generated.write_text("existing content\n")
     command = tyro.cli(TaskCommand, args=["-t", str(path), "-o", str(tmp_path), *flags])
+    command.execute = bool(flags)
     started = []
 
     @contextmanager
@@ -101,6 +102,31 @@ def test_print_outputs_yaml_without_execution(monkeypatch, capsys):
     assert YAML(typ="safe").load(output.out)["env"]["TASK_HASH"] == command.config.hash
 
 
+def test_execution_is_opt_in():
+    path = Path(__file__).parent / "configs" / "Taskfile.yml"
+    command = tyro.cli(TaskCommand, args=["-t", str(path)])
+    assert command.execute is False
+
+
+def test_generates_taskfile_without_running_task_by_default(monkeypatch, tmp_path):
+    path = Path(__file__).parent / "configs" / "Taskfile.yml"
+    output_dir = tmp_path / "output"
+    command = tyro.cli(
+        TaskCommand,
+        args=["-t", str(path), "-o", str(output_dir)],
+    )
+
+    def unexpected_call(*args, **kwargs):
+        pytest.fail("Task must not run without --exec")
+
+    monkeypatch.setattr("slurm_compose.taskfile.task.subprocess.Popen", unexpected_call)
+
+    assert command() == 0
+    generated = output_dir / "Taskfile.yml"
+    assert generated.is_file()
+    assert YAML(typ="safe").load(generated.read_text())["env"]["TASK_HASH"] == command.config.hash
+
+
 @pytest.mark.parametrize("returncode", [0, 7])
 @pytest.mark.parametrize("silent", [True, False])
 @pytest.mark.parametrize("raw", [True, False])
@@ -108,7 +134,7 @@ def test_print_outputs_yaml_without_execution(monkeypatch, capsys):
 def test_execute_generated_taskfile(monkeypatch, capsys, tmp_path, returncode, silent, raw, persistent):
     path = Path(__file__).parent / "configs" / "Taskfile.yml"
     output_dir = tmp_path / "nested" / "output" if persistent else None
-    command = TaskCommand(taskfile=path, silent=silent, raw=raw, output_dir=output_dir)
+    command = TaskCommand(taskfile=path, silent=silent, raw=raw, output_dir=output_dir, execute=True)
     generated_paths = []
 
     @contextmanager

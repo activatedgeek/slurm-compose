@@ -35,6 +35,9 @@ class TaskCommand:
     print_config: Annotated[bool, tyro.conf.arg(name="print")] = False
     """Print generated Taskfile YAML without executing it."""
 
+    execute: Annotated[bool, tyro.conf.arg(name="exec")] = False
+    """Run Task after generating the Taskfile."""
+
     config: Taskfile = field(init=False)
 
     def __post_init__(self):
@@ -58,6 +61,10 @@ class TaskCommand:
                     markup=False,
                     soft_wrap=True,
                 )
+
+            if not self.execute:
+                self.config.to_yaml(output_dir, force=self.force)
+                return 0
 
             with self.config.proc(
                 output_dir,

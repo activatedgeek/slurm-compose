@@ -36,8 +36,8 @@ def test_to_yaml_round_trip():
     assert data["tasks"]["default"] == {
         "desc": "Run the simple debug workflow",
         "deps": ["debug"],
-        "sources": [str(Path.cwd() / "debug.done")],
-        "generates": [str(Path.cwd() / "default.done")],
+        "sources": ["debug.done"],
+        "generates": ["default.done"],
         "status": ['test -f "$TASK_DIR/$TASK_NAME.done"'],
         "cmds": ['date +%s%N > "$TASK_DIR/$TASK_NAME.done"'],
         "env": {"TASK_NAME": "default"},

@@ -80,8 +80,8 @@ class Taskfile(TaskfileSpecModel):
             task.cmds = task.runner(task.cmds)
             task.cmds.append('date +%s%N > "$TASK_DIR/$TASK_NAME.done"')
 
-            task.sources.extend(str(task_dir / f"{dependency}.done") for dependency in task.deps)
-            task.generates.append(str(task_dir / f"{name}.done"))
+            task.sources.extend(f"{dependency}.done" for dependency in task.deps)
+            task.generates.append(f"{name}.done")
             task.status.append('test -f "$TASK_DIR/$TASK_NAME.done"')
 
         return rendered
